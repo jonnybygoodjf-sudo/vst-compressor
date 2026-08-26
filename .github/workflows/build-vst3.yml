@@ -11,6 +11,8 @@ on:
 jobs:
   build-windows:
     runs-on: windows-2022
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout do codigo
@@ -33,3 +35,13 @@ jobs:
         with:
           name: SidechainCompressor-VST3
           path: artifact/
+
+      - name: Publicar release com o vst3 pronto
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest-build
+          name: Ultimo build
+          files: artifact/*
+          make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
