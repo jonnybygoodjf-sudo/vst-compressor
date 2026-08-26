@@ -29,6 +29,9 @@ jobs:
         run: |
           mkdir -p artifact
           cp -r "build/SidechainCompressor_artefacts/Release/VST3/"* artifact/
+          cd artifact
+          zip -r ../SidechainCompressor-VST3.zip .
+          cd ..
 
       - name: Publicar artifact para download
         uses: actions/upload-artifact@v4
@@ -41,7 +44,7 @@ jobs:
         with:
           tag_name: latest-build
           name: Ultimo build
-          files: artifact/*
+          files: SidechainCompressor-VST3.zip
           make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
