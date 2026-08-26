@@ -29,9 +29,10 @@ jobs:
         run: |
           mkdir -p artifact
           cp -r "build/SidechainCompressor_artefacts/Release/VST3/"* artifact/
-          cd artifact
-          zip -r ../SidechainCompressor-VST3.zip .
-          cd ..
+
+      - name: Compactar para a release
+        shell: pwsh
+        run: Compress-Archive -Path artifact/* -DestinationPath SidechainCompressor-VST3.zip -Force
 
       - name: Publicar artifact para download
         uses: actions/upload-artifact@v4
