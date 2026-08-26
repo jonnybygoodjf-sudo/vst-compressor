@@ -1,0 +1,35 @@
+name: Build VST3 (Windows)
+
+# Compila o plugin num runner Windows de verdade (com MSVC), na nuvem do
+# GitHub. Nao precisa ter Visual Studio instalado na sua maquina.
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch: {}
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout do codigo
+        uses: actions/checkout@v4
+
+      - name: Configurar (CMake baixa o JUCE automaticamente)
+        run: cmake -B build -G "Visual Studio 17 2022" -A x64
+
+      - name: Compilar (Release)
+        run: cmake --build build --config Release --parallel
+
+      - name: Empacotar o .vst3 resultante
+        shell: bash
+        run: |
+          mkdir -p artifact
+          cp -r "build/SidechainCompressor_artefacts/Release/VST3/"* artifact/
+
+      - name: Publicar artifact para download
+        uses: actions/upload-artifact@v4
+        with:
+          name: SidechainCompressor-VST3
+          path: artifact/
