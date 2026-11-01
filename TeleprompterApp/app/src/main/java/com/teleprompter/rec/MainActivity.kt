@@ -39,6 +39,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var radioFront: RadioButton
     private lateinit var radioBack: RadioButton
     private lateinit var qualitySpinner: Spinner
+    private lateinit var radioLandscape: RadioButton
     private lateinit var prompterScroll: ScrollView
     private lateinit var prompterText: TextView
     private lateinit var timerText: TextView
@@ -112,6 +113,14 @@ class MainActivity : AppCompatActivity() {
         radioFront = findViewById(R.id.radioFront)
         radioBack = findViewById(R.id.radioBack)
         qualitySpinner = findViewById(R.id.qualitySpinner)
+        radioLandscape = findViewById(R.id.radioLandscape)
+        findViewById<RadioButton>(R.id.radioPortrait).isChecked = !prefs.getBoolean("landscape", false)
+        radioLandscape.isChecked = prefs.getBoolean("landscape", false)
+        applyOrientation()
+        findViewById<RadioGroup>(R.id.orientationGroup).setOnCheckedChangeListener { _, _ ->
+            prefs.edit().putBoolean("landscape", radioLandscape.isChecked).apply()
+            applyOrientation()
+        }
         prompterScroll = findViewById(R.id.prompterScroll)
         prompterText = findViewById(R.id.prompterText)
         timerText = findViewById(R.id.timerText)
@@ -159,6 +168,18 @@ class MainActivity : AppCompatActivity() {
         recButton.setOnClickListener { onRecClicked() }
 
         if (hasPermissions()) bindCamera() else requestPermissions(requiredPermissions(), 10)
+    }
+
+    private fun applyOrientation() {
+        requestedOrientation = if (radioLandscape.isChecked)
+            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        else android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+    }
+
+    // A tela girou: reabre a camera para o video sair na rotacao certa
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        if (recording == null) bindCamera()
     }
 
     private fun isBack() = radioBack.isChecked
@@ -247,8 +268,9 @@ class MainActivity : AppCompatActivity() {
         prompterText.text = text
         prompterText.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, (fontSeek.progress + 30).toFloat())
         val h = resources.displayMetrics.heightPixels
-        prompterText.setPadding(prompterText.paddingLeft, (h * 0.18f).toInt(), prompterText.paddingRight, h)
-        (guideLine.layoutParams as FrameLayout.LayoutParams).topMargin = (h * 0.18f).toInt()
+        val topPad = if (h > resources.displayMetrics.widthPixels) 0.18f else 0.12f
+        prompterText.setPadding(prompterText.paddingLeft, (h * topPad).toInt(), prompterText.paddingRight, h)
+        (guideLine.layoutParams as FrameLayout.LayoutParams).topMargin = (h * topPad).toInt()
         guideLine.requestLayout()
         prompterScroll.scrollTo(0, 0)
         scrollPos = 0f
