@@ -1,0 +1,222 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000">
+
+    <!-- Camera ao fundo (mais opaca/escurecida; a gravacao sai com brilho normal) -->
+    <androidx.camera.view.PreviewView
+        android:id="@+id/previewView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <!-- ================= TELA DE CONFIGURACAO ================= -->
+    <ScrollView
+        android:id="@+id/editorPanel"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#F2111827"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Teleprompter"
+                android:textColor="#FFFFFF"
+                android:textSize="24sp"
+                android:textStyle="bold" />
+
+            <EditText
+                android:id="@+id/scriptInput"
+                android:layout_width="match_parent"
+                android:layout_height="220dp"
+                android:layout_marginTop="12dp"
+                android:background="#1F2937"
+                android:gravity="top|start"
+                android:hint="Cole ou digite seu texto aqui..."
+                android:inputType="textMultiLine|textCapSentences"
+                android:padding="12dp"
+                android:textColor="#FFFFFF"
+                android:textColorHint="#9CA3AF"
+                android:textSize="16sp" />
+
+            <TextView
+                android:id="@+id/fontLabel"
+                style="@style/Label" />
+            <SeekBar
+                android:id="@+id/fontSeek"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:max="70" />
+
+            <TextView
+                android:id="@+id/speedLabel"
+                style="@style/Label" />
+            <SeekBar
+                android:id="@+id/speedSeek"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:max="99" />
+
+            <TextView
+                android:id="@+id/opacityLabel"
+                style="@style/Label" />
+            <SeekBar
+                android:id="@+id/opacitySeek"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:max="90" />
+
+            <TextView
+                style="@style/Label"
+                android:text="Câmera" />
+            <RadioGroup
+                android:id="@+id/cameraGroup"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+                <RadioButton
+                    android:id="@+id/radioFront"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Frontal"
+                    android:textColor="#FFFFFF" />
+                <RadioButton
+                    android:id="@+id/radioBack"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="24dp"
+                    android:text="Traseira"
+                    android:textColor="#FFFFFF" />
+            </RadioGroup>
+
+            <TextView
+                style="@style/Label"
+                android:text="Qualidade do vídeo" />
+            <Spinner
+                android:id="@+id/qualitySpinner"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:background="#1F2937" />
+
+            <Button
+                android:id="@+id/startButton"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:layout_marginTop="20dp"
+                android:text="Abrir teleprompter e câmera"
+                android:textStyle="bold" />
+        </LinearLayout>
+    </ScrollView>
+
+    <!-- ================= TELA DE GRAVACAO / TELEPROMPTER ================= -->
+    <FrameLayout
+        android:id="@+id/prompterPanel"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone">
+
+        <ScrollView
+            android:id="@+id/prompterScroll"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:fillViewport="true"
+            android:scrollbars="none">
+            <TextView
+                android:id="@+id/prompterText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_horizontal"
+                android:lineSpacingMultiplier="1.15"
+                android:paddingStart="20dp"
+                android:paddingEnd="20dp"
+                android:textColor="#FFFFFF"
+                android:shadowColor="#000000"
+                android:shadowRadius="6"
+                android:textStyle="bold" />
+        </ScrollView>
+
+        <!-- linha-guia de leitura -->
+        <View
+            android:id="@+id/guideLine"
+            android:layout_width="match_parent"
+            android:layout_height="2dp"
+            android:layout_marginTop="150dp"
+            android:background="#66FF5252" />
+
+        <TextView
+            android:id="@+id/timerText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|end"
+            android:layout_margin="12dp"
+            android:background="#99000000"
+            android:padding="6dp"
+            android:text="00:00"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp" />
+
+        <TextView
+            android:id="@+id/countdownText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:textColor="#FFFFFF"
+            android:shadowColor="#000000"
+            android:shadowRadius="12"
+            android:textSize="140sp"
+            android:textStyle="bold"
+            android:visibility="gone" />
+
+        <LinearLayout
+            android:id="@+id/controls"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom"
+            android:background="#99000000"
+            android:gravity="center"
+            android:orientation="horizontal"
+            android:padding="10dp">
+
+            <Button
+                android:id="@+id/backButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="←" />
+            <Button
+                android:id="@+id/rewindButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="⏮" />
+            <Button
+                android:id="@+id/slowerButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="−" />
+            <Button
+                android:id="@+id/recButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:backgroundTint="#DC2626"
+                android:text="● GRAVAR"
+                android:textColor="#FFFFFF"
+                android:textStyle="bold" />
+            <Button
+                android:id="@+id/fasterButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="+" />
+            <Button
+                android:id="@+id/pauseButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="⏯" />
+        </LinearLayout>
+    </FrameLayout>
+</FrameLayout>
