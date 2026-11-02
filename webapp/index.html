@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Teleprompter">
+<meta name="theme-color" content="#000000">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-180.png">
+<title>Teleprompter</title>
+<style>
+  :root { --accent1:#6366F1; --accent2:#A855F7; --card:rgba(17,24,39,.72); --line:rgba(255,255,255,.18); }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { margin:0; height:100%; background:#000; color:#fff; overflow:hidden;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; touch-action:manipulation; }
+  #app { position:fixed; inset:0; height:100dvh; }
+  video#cam { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; background:#000; }
+  video#cam.mirror { transform:scaleX(-1); }
+  .view { position:absolute; inset:0; display:none; }
+  .view.on { display:flex; }
+  button { font:inherit; color:#fff; border:0; cursor:pointer; }
+
+  /* ---------- Edicao ---------- */
+  #editor { flex-direction:column; gap:10px; padding:max(14px,env(safe-area-inset-top)) 14px max(14px,env(safe-area-inset-bottom));
+    background:linear-gradient(180deg,rgba(0,0,0,.65),rgba(0,0,0,.12) 45%,rgba(0,0,0,.75)); }
+  .left { flex:1; min-height:0; display:flex; flex-direction:column; gap:10px; }
+  .head { display:flex; align-items:center; justify-content:space-between; }
+  h1 { margin:0; font-size:24px; font-weight:600; text-shadow:0 1px 8px #000; }
+  .pill { background:rgba(17,24,39,.65); border:1px solid var(--line); border-radius:20px; padding:9px 16px; }
+  textarea { flex:1; min-height:0; width:100%; resize:none; color:#fff; font-family:inherit; font-size:17px; line-height:1.4; padding:16px;
+    background:rgba(17,24,39,.5); border:1px solid var(--line); border-radius:20px; outline:none; -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px); }
+  textarea::placeholder { color:#b0b7c3; }
+  .right { display:flex; flex-direction:column; gap:10px; }
+  .settings { display:none; background:var(--card); border:1px solid var(--line); border-radius:20px; padding:16px;
+    max-height:42dvh; overflow:auto; -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px); }
+  .settings.open { display:block; }
+  .settings label { display:block; margin:14px 0 4px; font-size:13px; font-weight:700; color:#e5e7eb; }
+  .settings label:first-child { margin-top:0; }
+  input[type=range] { width:100%; accent-color:#A78BFA; }
+  .seg { display:flex; gap:6px; }
+  .seg button { flex:1; height:42px; border-radius:12px; background:rgba(31,41,55,.45); border:1px solid var(--line); }
+  .seg button.on { background:linear-gradient(90deg,var(--accent1),var(--accent2)); border-color:transparent; }
+  select { width:100%; height:44px; border-radius:12px; color:#fff; background:rgba(31,41,55,.6); border:1px solid var(--line); padding:0 10px; font-size:15px; }
+  .info { margin-top:8px; font-size:12px; color:#cbd5e1; }
+  .primary { height:58px; border-radius:18px; font-size:17px; font-weight:600; background:linear-gradient(90deg,var(--accent1),var(--accent2)); }
+  @media (orientation:landscape) {
+    #editor { flex-direction:row; }
+    .left,.right { flex:1; min-width:0; }
+    .right { min-height:0; }
+    .settings { display:block; flex:1; max-height:none; }
+    #gear { display:none; }
+  }
+
+  /* ---------- Teleprompter ---------- */
+  #prompter { flex-direction:column; }
+  #viewport { position:absolute; inset:0; overflow:hidden; }
+  #scroller { position:absolute; left:0; right:0; top:0; padding:0 24px; text-align:center; font-weight:700; line-height:1.2;
+    text-shadow:0 0 8px #000, 0 0 3px #000; white-space:pre-wrap; will-change:transform; }
+  #guide { position:absolute; left:0; right:0; height:3px; background:rgba(167,139,250,.6); pointer-events:none; }
+  #timer { position:absolute; top:max(12px,env(safe-area-inset-top)); right:12px; background:rgba(17,24,39,.65); border:1px solid var(--line);
+    border-radius:20px; padding:6px 14px; font-variant-numeric:tabular-nums; }
+  #count { position:absolute; inset:0; display:none; align-items:center; justify-content:center; font-size:140px; font-weight:600; text-shadow:0 0 14px #000; pointer-events:none; }
+  #controls { position:absolute; left:0; right:0; bottom:0; display:flex; justify-content:center; align-items:center; gap:10px;
+    padding:30px 8px max(12px,env(safe-area-inset-bottom)); background:linear-gradient(0deg,rgba(0,0,0,.8),transparent); }
+  .round { width:52px; height:52px; border-radius:50%; font-size:20px; background:rgba(17,24,39,.65); border:1px solid var(--line); }
+  #rec { height:56px; padding:0 20px; border-radius:28px; font-size:16px; font-weight:600; background:linear-gradient(90deg,#EF4444,#DC2626); }
+
+  /* ---------- Camera / resultado ---------- */
+  #enable { position:absolute; inset:0; z-index:5; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px;
+    background:rgba(0,0,0,.85); text-align:center; padding:30px; }
+  #enable.on { display:flex; }
+  #result { position:absolute; inset:0; z-index:6; display:none; flex-direction:column; gap:12px; padding:max(16px,env(safe-area-inset-top)) 16px max(16px,env(safe-area-inset-bottom));
+    background:rgba(0,0,0,.92); }
+  #result.on { display:flex; }
+  #result video { flex:1; min-height:0; width:100%; object-fit:contain; background:#000; border-radius:16px; }
+  #toast { position:absolute; left:50%; top:max(70px,env(safe-area-inset-top)); transform:translateX(-50%); z-index:9; background:rgba(17,24,39,.9);
+    border:1px solid var(--line); border-radius:16px; padding:10px 16px; display:none; max-width:90%; text-align:center; }
+</style>
+</head>
+<body>
+<div id="app">
+  <video id="cam" autoplay muted playsinline></video>
+
+  <!-- Edicao + ajustes sobre o video -->
+  <div id="editor" class="view on">
+    <div class="left">
+      <div class="head">
+        <h1>Teleprompter</h1>
+        <button id="gear" class="pill">⚙&nbsp; Ajustes</button>
+      </div>
+      <textarea id="script" placeholder="Cole ou digite seu texto aqui..."></textarea>
+    </div>
+    <div class="right">
+      <div id="settings" class="settings">
+        <label id="fontLabel"></label>
+        <input id="font" type="range" min="30" max="100" step="1">
+        <label id="speedLabel"></label>
+        <input id="speed" type="range" min="1" max="100" step="1">
+        <label id="dimLabel"></label>
+        <input id="dim" type="range" min="10" max="100" step="1">
+        <label>CÂMERA</label>
+        <div class="seg" id="camSeg"><button data-v="user">Frontal</button><button data-v="environment">Traseira</button></div>
+        <label>QUALIDADE DO VÍDEO</label>
+        <select id="quality">
+          <option value="max">Máxima (até 4K, o que o aparelho oferecer)</option>
+          <option value="1080">Full HD (1080p)</option>
+          <option value="720">HD (720p)</option>
+        </select>
+        <div class="info" id="info"></div>
+        <div class="info">Para gravar na horizontal, gire o celular antes de abrir o teleprompter.</div>
+      </div>
+      <button id="start" class="primary">Abrir teleprompter ▶</button>
+    </div>
+  </div>
+
+  <!-- Teleprompter / gravacao -->
+  <div id="prompter" class="view">
+    <div id="viewport"><div id="scroller"></div></div>
+    <div id="guide"></div>
+    <div id="timer">00:00</div>
+    <div id="count"></div>
+    <div id="controls">
+      <button id="back" class="round">←</button>
+      <button id="rewind" class="round">⏮</button>
+      <button id="slower" class="round">−</button>
+      <button id="rec">● GRAVAR</button>
+      <button id="faster" class="round">+</button>
+      <button id="pause" class="round">⏯</button>
+    </div>
+  </div>
+
+  <div id="enable">
+    <div style="font-size:20px;font-weight:600">Preciso da câmera e do microfone</div>
+    <div id="enableMsg" style="color:#cbd5e1">Toque abaixo e permita o acesso.</div>
+    <button id="enableBtn" class="primary" style="padding:0 28px">Ativar câmera</button>
+  </div>
+
+  <div id="result">
+    <video id="resVideo" controls playsinline></video>
+    <button id="save" class="primary">Salvar / Compartilhar vídeo</button>
+    <div style="display:flex;gap:10px">
+      <button id="again" class="pill" style="flex:1;height:48px">Gravar de novo</button>
+      <button id="closeRes" class="pill" style="flex:1;height:48px">Fechar</button>
+    </div>
+    <div class="info" id="resInfo"></div>
+  </div>
+  <div id="toast"></div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('tp_' + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem('tp_' + k, JSON.stringify(v)); } catch {} }
+};
+const S = { text: store.get('text',''), font: store.get('font',50), speed: store.get('speed',30),
+            dim: store.get('dim',55), facing: store.get('facing','user'), quality: store.get('quality','max') };
+
+const cam = $('cam'), script = $('script');
+let stream = null, recorder = null, chunks = [], recording = false, recStart = 0, timerId = 0, resultBlob = null;
+let scrolling = false, pos = 0, last = 0, wakeLock = null, countdownId = 0, counting = false;
+
+function toast(msg, ms=3000) { const t=$('toast'); t.textContent=msg; t.style.display='block'; clearTimeout(toast.id); toast.id=setTimeout(()=>t.style.display='none', ms); }
+
+/* ---------- Ajustes ---------- */
+function refreshLabels() {
+  $('fontLabel').textContent = `TAMANHO DA LETRA: ${S.font}`;
+  $('speedLabel').textContent = `VELOCIDADE DE ROLAGEM: ${S.speed}`;
+  $('dimLabel').textContent = `BRILHO DA CÂMERA AO FUNDO: ${S.dim}%`;
+  cam.style.opacity = S.dim / 100;
+  document.querySelectorAll('#camSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === S.facing));
+  cam.classList.toggle('mirror', S.facing === 'user');
+}
+script.value = S.text;
+$('font').value = S.font; $('speed').value = S.speed; $('dim').value = S.dim; $('quality').value = S.quality;
+script.addEventListener('input', () => { S.text = script.value; store.set('text', S.text); });
+for (const [id,key] of [['font','font'],['speed','speed'],['dim','dim']]) {
+  $(id).addEventListener('input', e => { S[key] = +e.target.value; store.set(key, S[key]); refreshLabels(); });
+}
+$('camSeg').addEventListener('click', e => { const v=e.target.dataset.v; if(!v||recording) return; S.facing=v; store.set('facing',v); refreshLabels(); startCamera(); });
+$('quality').addEventListener('change', e => { S.quality=e.target.value; store.set('quality',S.quality); if(!recording) startCamera(); });
+$('gear').addEventListener('click', () => { const o=$('settings').classList.toggle('open'); $('gear').innerHTML = o ? '✕&nbsp; Fechar' : '⚙&nbsp; Ajustes'; });
+refreshLabels();
+
+/* ---------- Camera ---------- */
+async function startCamera() {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    $('enableMsg').textContent = 'Este navegador não permite câmera. No iPhone use o Safari e abra o endereço com https://.';
+    $('enableBtn').style.display = 'none'; $('enable').classList.add('on'); return;
+  }
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  const size = { max:{width:{ideal:3840},height:{ideal:2160}}, '1080':{width:{ideal:1920},height:{ideal:1080}}, '720':{width:{ideal:1280},height:{ideal:720}} }[S.quality];
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: S.facing }, ...size, frameRate: { ideal: 30 } },
+      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: true }
+    });
+  } catch (err) {
+    $('enableMsg').textContent = 'Não consegui abrir a câmera/microfone (' + (err.name||'erro') + '). Permita o acesso nas configurações do navegador e toque abaixo.';
+    $('enableBtn').style.display = ''; $('enable').classList.add('on'); return;
+  }
+  $('enable').classList.remove('on');
+  cam.srcObject = stream;
+  try { await cam.play(); } catch {}
+  const s = stream.getVideoTracks()[0].getSettings();
+  $('info').textContent = `Resolução obtida: ${s.width}×${s.height}` + (s.frameRate ? ` @ ${Math.round(s.frameRate)} fps` : '');
+}
+$('enableBtn').addEventListener('click', startCamera);
+
+/* ---------- Telas ---------- */
+function show(id) { for (const v of ['editor','prompter']) $(v).classList.toggle('on', v===id); }
+
+async function openPrompter() {
+  if (!stream) { await startCamera(); if (!stream) return; }
+  const sc = $('scroller'), h = innerHeight, top = h * (innerHeight > innerWidth ? .18 : .12);
+  sc.textContent = script.value.trim() || '(Sem texto. Volte e digite o seu roteiro.)';
+  sc.style.fontSize = S.font + 'px';
+  sc.style.paddingTop = top + 'px'; sc.style.paddingBottom = h + 'px';
+  $('guide').style.top = top + 'px';
+  pos = 0; sc.style.transform = 'translateY(0)'; scrolling = false;
+  $('timer').textContent = '00:00'; $('rec').textContent = '● GRAVAR';
+  show('prompter');
+  try { wakeLock = await navigator.wakeLock?.request('screen'); } catch {}
+}
+function closePrompter() {
+  if (recording) stopRecording();
+  cancelCountdown(); scrolling = false; show('editor');
+  try { wakeLock?.release(); } catch {} wakeLock = null;
+}
+$('start').addEventListener('click', openPrompter);
+$('back').addEventListener('click', closePrompter);
+
+/* ---------- Rolagem ---------- */
+function frame(t) {
+  if (!scrolling) { last = 0; return; }
+  if (last) {
+    const sc = $('scroller'), max = Math.max(0, sc.offsetHeight - innerHeight);
+    pos += S.speed * 3 * (t - last) / 1000;           // px por segundo
+    if (pos >= max) { pos = max; scrolling = false; }
+    sc.style.transform = `translateY(${-pos}px)`;
+  }
+  last = t; requestAnimationFrame(frame);
+}
+const startScroll = () => { if (!scrolling) { scrolling = true; last = 0; requestAnimationFrame(frame); } };
+const toggleScroll = () => scrolling ? (scrolling = false) : startScroll();
+$('pause').addEventListener('click', toggleScroll);
+$('viewport').addEventListener('click', toggleScroll);
+$('rewind').addEventListener('click', () => { pos = 0; $('scroller').style.transform = 'translateY(0)'; });
+function bump(d) { S.speed = Math.max(1, Math.min(100, S.speed + d)); store.set('speed', S.speed); $('speed').value = S.speed; refreshLabels(); toast('Velocidade: ' + S.speed, 900); }
+$('slower').addEventListener('click', () => bump(-5));
+$('faster').addEventListener('click', () => bump(+5));
+
+/* ---------- Gravacao ---------- */
+function pickMime() {
+  const c = ['video/mp4;codecs=avc1.42E01E,mp4a.40.2','video/mp4','video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'];
+  return c.find(t => window.MediaRecorder && MediaRecorder.isTypeSupported(t)) || '';
+}
+function cancelCountdown() { clearInterval(countdownId); counting = false; $('count').style.display = 'none'; if(!recording) $('rec').textContent='● GRAVAR'; }
+
+$('rec').addEventListener('click', () => {
+  if (recording) return stopRecording();
+  if (counting) return cancelCountdown();
+  if (!window.MediaRecorder) return toast('Este navegador não suporta gravação de vídeo. No iPhone precisa do iOS 14.3 ou mais novo.', 5000);
+  counting = true; let n = 3;
+  $('rec').textContent = '✕ CANCELAR'; $('count').style.display = 'flex'; $('count').textContent = n;
+  countdownId = setInterval(() => {
+    n--;
+    if (n > 0) { $('count').textContent = n; return; }
+    cancelCountdown(); startRecording(); startScroll();
+  }, 1000);
+});
+
+function startRecording() {
+  const mime = pickMime();
+  const h = Math.max(stream.getVideoTracks()[0].getSettings().height || 0, stream.getVideoTracks()[0].getSettings().width || 0);
+  const bits = h >= 2500 ? 40e6 : h >= 1500 ? 16e6 : h >= 1000 ? 8e6 : 5e6;
+  try { recorder = new MediaRecorder(stream, { ...(mime ? { mimeType: mime } : {}), videoBitsPerSecond: bits, audioBitsPerSecond: 192000 }); }
+  catch (e) { try { recorder = new MediaRecorder(stream); } catch (e2) { return toast('Não foi possível iniciar a gravação: ' + e2.message, 5000); } }
+  chunks = [];
+  recorder.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+  recorder.onstop = () => {
+    clearInterval(timerId); recording = false; $('rec').textContent = '● GRAVAR';
+    const type = recorder.mimeType || mime || 'video/mp4';
+    resultBlob = new Blob(chunks, { type });
+    showResult();
+  };
+  recorder.start(1000);
+  recording = true; recStart = Date.now(); $('rec').textContent = '■ PARAR';
+  timerId = setInterval(() => { const s=Math.floor((Date.now()-recStart)/1000); $('timer').textContent = '● ' + String(Math.floor(s/60)).padStart(2,'0') + ':' + String(s%60).padStart(2,'0'); }, 500);
+}
+function stopRecording() { try { recorder.stop(); } catch {} scrolling = false; }
+
+/* ---------- Resultado ---------- */
+function ext() { return /mp4/.test(resultBlob.type) ? 'mp4' : 'webm'; }
+function fileName() { const d=new Date(), p=n=>String(n).padStart(2,'0'); return `Teleprompter_${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}.${ext()}`; }
+function showResult() {
+  $('resVideo').src = URL.createObjectURL(resultBlob);
+  $('resInfo').textContent = `${(resultBlob.size/1048576).toFixed(1)} MB · ${ext().toUpperCase()}. Toque em "Salvar" e escolha "Salvar vídeo" para enviar para a galeria.`;
+  $('result').classList.add('on');
+}
+$('save').addEventListener('click', async () => {
+  const file = new File([resultBlob], fileName(), { type: resultBlob.type });
+  if (navigator.canShare?.({ files: [file] })) {
+    try { await navigator.share({ files: [file] }); return; } catch (e) { if (e.name === 'AbortError') return; }
+  }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(resultBlob); a.download = file.name; document.body.appendChild(a); a.click(); a.remove();
+  toast('Download iniciado.');
+});
+function closeResult() { $('result').classList.remove('on'); const v=$('resVideo'); v.pause(); URL.revokeObjectURL(v.src); v.removeAttribute('src'); }
+$('closeRes').addEventListener('click', () => { closeResult(); closePrompter(); });
+$('again').addEventListener('click', () => { closeResult(); pos = 0; $('scroller').style.transform = 'translateY(0)'; });
+
+document.addEventListener('visibilitychange', async () => {
+  if (document.hidden) { if (recording) stopRecording(); }
+  else if ($('prompter').classList.contains('on')) { try { wakeLock = await navigator.wakeLock?.request('screen'); } catch {} }
+});
+
+startCamera();
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+</script>
+</body>
+</html>
