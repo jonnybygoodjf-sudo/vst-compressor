@@ -4,139 +4,142 @@
     android:layout_height="match_parent"
     android:background="#000000">
 
-    <!-- Camera ao fundo (mais opaca/escurecida; a gravacao sai com brilho normal) -->
+    <!-- Camera ao vivo no fundo (brilho ajustavel; a gravacao sai com brilho normal) -->
     <androidx.camera.view.PreviewView
         android:id="@+id/previewView"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
-    <!-- ================= TELA DE CONFIGURACAO ================= -->
-    <ScrollView
+    <!-- ================= EDICAO + AJUSTES (por cima do video) ================= -->
+    <LinearLayout
         android:id="@+id/editorPanel"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="#F2111827"
-        android:fillViewport="true">
+        android:background="@drawable/scrim_bg"
+        android:orientation="vertical"
+        android:padding="14dp">
 
         <LinearLayout
+            android:id="@+id/editorLeft"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:padding="16dp">
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
 
-            <TextView
-                android:layout_width="wrap_content"
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Teleprompter"
-                android:textColor="#FFFFFF"
-                android:textSize="24sp"
-                android:textStyle="bold" />
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:fontFamily="sans-serif-medium"
+                    android:shadowColor="#000000"
+                    android:shadowRadius="8"
+                    android:text="Teleprompter"
+                    android:textColor="#FFFFFF"
+                    android:textSize="24sp" />
+                <Button
+                    android:id="@+id/settingsToggle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="40dp"
+                    android:background="@drawable/btn_pill"
+                    android:minWidth="0dp"
+                    android:minHeight="0dp"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp"
+                    android:text="⚙  Ajustes"
+                    android:textColor="#FFFFFF" />
+            </LinearLayout>
 
             <EditText
                 android:id="@+id/scriptInput"
                 android:layout_width="match_parent"
-                android:layout_height="220dp"
-                android:layout_marginTop="12dp"
-                android:background="#1F2937"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/input_bg"
                 android:gravity="top|start"
                 android:hint="Cole ou digite seu texto aqui..."
                 android:inputType="textMultiLine|textCapSentences"
-                android:padding="12dp"
+                android:padding="16dp"
                 android:textColor="#FFFFFF"
-                android:textColorHint="#9CA3AF"
-                android:textSize="16sp" />
+                android:textColorHint="#B0B7C3"
+                android:textSize="17sp" />
+        </LinearLayout>
 
-            <TextView
-                android:id="@+id/fontLabel"
-                style="@style/Label" />
-            <SeekBar
-                android:id="@+id/fontSeek"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:max="70" />
+        <LinearLayout
+            android:id="@+id/editorRight"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
 
-            <TextView
-                android:id="@+id/speedLabel"
-                style="@style/Label" />
-            <SeekBar
-                android:id="@+id/speedSeek"
+            <ScrollView
+                android:id="@+id/settingsScroll"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:max="99" />
+                android:layout_height="260dp"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/card_bg"
+                android:visibility="gone">
 
-            <TextView
-                android:id="@+id/opacityLabel"
-                style="@style/Label" />
-            <SeekBar
-                android:id="@+id/opacitySeek"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:max="90" />
-
-            <TextView
-                style="@style/Label"
-                android:text="Câmera" />
-            <RadioGroup
-                android:id="@+id/cameraGroup"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal">
-                <RadioButton
-                    android:id="@+id/radioFront"
-                    android:layout_width="wrap_content"
+                <LinearLayout
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Frontal"
-                    android:textColor="#FFFFFF" />
-                <RadioButton
-                    android:id="@+id/radioBack"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="24dp"
-                    android:text="Traseira"
-                    android:textColor="#FFFFFF" />
-            </RadioGroup>
+                    android:orientation="vertical"
+                    android:padding="16dp">
 
-            <TextView
-                style="@style/Label"
-                android:text="Orientação do vídeo" />
-            <RadioGroup
-                android:id="@+id/orientationGroup"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal">
-                <RadioButton
-                    android:id="@+id/radioPortrait"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Vertical"
-                    android:textColor="#FFFFFF" />
-                <RadioButton
-                    android:id="@+id/radioLandscape"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="24dp"
-                    android:text="Horizontal"
-                    android:textColor="#FFFFFF" />
-            </RadioGroup>
+                    <TextView android:id="@+id/fontLabel" style="@style/Label" android:layout_marginTop="0dp" />
+                    <SeekBar android:id="@+id/fontSeek" style="@style/Seek" android:max="70" />
 
-            <TextView
-                style="@style/Label"
-                android:text="Qualidade do vídeo" />
-            <Spinner
-                android:id="@+id/qualitySpinner"
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:background="#1F2937" />
+                    <TextView android:id="@+id/speedLabel" style="@style/Label" />
+                    <SeekBar android:id="@+id/speedSeek" style="@style/Seek" android:max="99" />
+
+                    <TextView android:id="@+id/opacityLabel" style="@style/Label" />
+                    <SeekBar android:id="@+id/opacitySeek" style="@style/Seek" android:max="90" />
+
+                    <TextView style="@style/Label" android:text="CÂMERA" />
+                    <RadioGroup
+                        android:id="@+id/cameraGroup"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal">
+                        <RadioButton android:id="@+id/radioFront" style="@style/Seg" android:text="Frontal" />
+                        <RadioButton android:id="@+id/radioBack" style="@style/Seg" android:text="Traseira" />
+                    </RadioGroup>
+
+                    <TextView style="@style/Label" android:text="ORIENTAÇÃO DO VÍDEO" />
+                    <RadioGroup
+                        android:id="@+id/orientationGroup"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal">
+                        <RadioButton android:id="@+id/radioPortrait" style="@style/Seg" android:text="Vertical" />
+                        <RadioButton android:id="@+id/radioLandscape" style="@style/Seg" android:text="Horizontal" />
+                    </RadioGroup>
+
+                    <TextView style="@style/Label" android:text="QUALIDADE DO VÍDEO" />
+                    <Spinner
+                        android:id="@+id/qualitySpinner"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:background="@drawable/field_bg" />
+                </LinearLayout>
+            </ScrollView>
 
             <Button
                 android:id="@+id/startButton"
                 android:layout_width="match_parent"
-                android:layout_height="56dp"
-                android:layout_marginTop="20dp"
-                android:text="Abrir teleprompter e câmera"
-                android:textStyle="bold" />
+                android:layout_height="58dp"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/btn_primary"
+                android:fontFamily="sans-serif-medium"
+                android:text="Abrir teleprompter  ▶"
+                android:textColor="#FFFFFF"
+                android:textSize="17sp" />
         </LinearLayout>
-    </ScrollView>
+    </LinearLayout>
 
     <!-- ================= TELA DE GRAVACAO / TELEPROMPTER ================= -->
     <FrameLayout
@@ -155,13 +158,14 @@
                 android:id="@+id/prompterText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:fontFamily="sans-serif-medium"
                 android:gravity="center_horizontal"
-                android:lineSpacingMultiplier="1.15"
-                android:paddingStart="20dp"
-                android:paddingEnd="20dp"
-                android:textColor="#FFFFFF"
+                android:lineSpacingMultiplier="1.2"
+                android:paddingStart="24dp"
+                android:paddingEnd="24dp"
                 android:shadowColor="#000000"
-                android:shadowRadius="6"
+                android:shadowRadius="8"
+                android:textColor="#FFFFFF"
                 android:textStyle="bold" />
         </ScrollView>
 
@@ -169,9 +173,8 @@
         <View
             android:id="@+id/guideLine"
             android:layout_width="match_parent"
-            android:layout_height="2dp"
-            android:layout_marginTop="150dp"
-            android:background="#66FF5252" />
+            android:layout_height="3dp"
+            android:background="#99A78BFA" />
 
         <TextView
             android:id="@+id/timerText"
@@ -179,8 +182,11 @@
             android:layout_height="wrap_content"
             android:layout_gravity="top|end"
             android:layout_margin="12dp"
-            android:background="#99000000"
-            android:padding="6dp"
+            android:background="@drawable/btn_pill"
+            android:paddingStart="14dp"
+            android:paddingTop="6dp"
+            android:paddingEnd="14dp"
+            android:paddingBottom="6dp"
             android:text="00:00"
             android:textColor="#FFFFFF"
             android:textSize="16sp" />
@@ -190,11 +196,11 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center"
-            android:textColor="#FFFFFF"
+            android:fontFamily="sans-serif-medium"
             android:shadowColor="#000000"
-            android:shadowRadius="12"
+            android:shadowRadius="14"
+            android:textColor="#FFFFFF"
             android:textSize="140sp"
-            android:textStyle="bold"
             android:visibility="gone" />
 
         <LinearLayout
@@ -202,44 +208,31 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_gravity="bottom"
-            android:background="#99000000"
+            android:background="@drawable/controls_bg"
             android:gravity="center"
             android:orientation="horizontal"
-            android:padding="10dp">
+            android:paddingTop="24dp"
+            android:paddingBottom="10dp">
 
-            <Button
-                android:id="@+id/backButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="←" />
-            <Button
-                android:id="@+id/rewindButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="⏮" />
-            <Button
-                android:id="@+id/slowerButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="−" />
+            <Button android:id="@+id/backButton" style="@style/RoundBtn" android:text="←" />
+            <Button android:id="@+id/rewindButton" style="@style/RoundBtn" android:text="⏮" />
+            <Button android:id="@+id/slowerButton" style="@style/RoundBtn" android:text="−" />
             <Button
                 android:id="@+id/recButton"
                 android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:backgroundTint="#DC2626"
+                android:layout_height="56dp"
+                android:layout_margin="5dp"
+                android:background="@drawable/btn_rec"
+                android:fontFamily="sans-serif-medium"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:paddingStart="20dp"
+                android:paddingEnd="20dp"
                 android:text="● GRAVAR"
                 android:textColor="#FFFFFF"
-                android:textStyle="bold" />
-            <Button
-                android:id="@+id/fasterButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="+" />
-            <Button
-                android:id="@+id/pauseButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="⏯" />
+                android:textSize="16sp" />
+            <Button android:id="@+id/fasterButton" style="@style/RoundBtn" android:text="+" />
+            <Button android:id="@+id/pauseButton" style="@style/RoundBtn" android:text="⏯" />
         </LinearLayout>
     </FrameLayout>
 </FrameLayout>

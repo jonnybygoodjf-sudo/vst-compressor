@@ -40,6 +40,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var radioBack: RadioButton
     private lateinit var qualitySpinner: Spinner
     private lateinit var radioLandscape: RadioButton
+    private lateinit var settingsToggle: Button
+    private lateinit var settingsScroll: View
+    private lateinit var editorLeft: View
+    private lateinit var editorRight: View
+    private var settingsOpen = false
     private lateinit var prompterScroll: ScrollView
     private lateinit var prompterText: TextView
     private lateinit var timerText: TextView
@@ -114,6 +119,12 @@ class MainActivity : AppCompatActivity() {
         radioBack = findViewById(R.id.radioBack)
         qualitySpinner = findViewById(R.id.qualitySpinner)
         radioLandscape = findViewById(R.id.radioLandscape)
+        settingsToggle = findViewById(R.id.settingsToggle)
+        settingsScroll = findViewById(R.id.settingsScroll)
+        editorLeft = findViewById(R.id.editorLeft)
+        editorRight = findViewById(R.id.editorRight)
+        settingsToggle.setOnClickListener { settingsOpen = !settingsOpen; layoutEditor() }
+        layoutEditor()
         findViewById<RadioButton>(R.id.radioPortrait).isChecked = !prefs.getBoolean("landscape", false)
         radioLandscape.isChecked = prefs.getBoolean("landscape", false)
         applyOrientation()
@@ -132,7 +143,7 @@ class MainActivity : AppCompatActivity() {
         scriptInput.setText(prefs.getString("text", ""))
         fontSeek.progress = prefs.getInt("font", 20)       // 30..100 sp => progress+30
         speedSeek.progress = prefs.getInt("speed", 30)     // 1..100 => progress+1
-        opacitySeek.progress = prefs.getInt("opacity", 40) // 10..100 => progress+10
+        opacitySeek.progress = prefs.getInt("opacity", 45) // 10..100 => progress+10
         if (prefs.getBoolean("back", false)) radioBack.isChecked = true else radioFront.isChecked = true
 
         val labels = SimpleSeek {
@@ -179,7 +190,38 @@ class MainActivity : AppCompatActivity() {
     // A tela girou: reabre a camera para o video sair na rotacao certa
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
+        layoutEditor()
         if (recording == null) bindCamera()
+    }
+
+    // Retrato: texto em cima, ajustes recolhiveis embaixo. Paisagem: texto | ajustes lado a lado.
+    private fun layoutEditor() {
+        val land = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+        val panel = editorPanel as LinearLayout
+        val h = resources.displayMetrics.heightPixels
+        val m = (10 * resources.displayMetrics.density).toInt()
+        val match = LinearLayout.LayoutParams.MATCH_PARENT
+        val wrap = LinearLayout.LayoutParams.WRAP_CONTENT
+        if (land) {
+            panel.orientation = LinearLayout.HORIZONTAL
+            editorLeft.layoutParams = LinearLayout.LayoutParams(0, match, 1f)
+            editorRight.layoutParams = LinearLayout.LayoutParams(0, match, 1f).also { it.marginStart = m }
+            (editorRight as LinearLayout).let { r ->
+                settingsScroll.visibility = View.VISIBLE
+                settingsScroll.layoutParams = LinearLayout.LayoutParams(match, 0, 1f)
+                r.requestLayout()
+            }
+            settingsToggle.visibility = View.GONE
+        } else {
+            panel.orientation = LinearLayout.VERTICAL
+            editorLeft.layoutParams = LinearLayout.LayoutParams(match, 0, 1f)
+            editorRight.layoutParams = LinearLayout.LayoutParams(match, wrap)
+            settingsScroll.layoutParams = LinearLayout.LayoutParams(match, (h * 0.42f).toInt())
+            settingsScroll.visibility = if (settingsOpen) View.VISIBLE else View.GONE
+            settingsToggle.visibility = View.VISIBLE
+            settingsToggle.text = if (settingsOpen) "✕  Fechar" else "⚙  Ajustes"
+        }
+        (settingsScroll.layoutParams as LinearLayout.LayoutParams).topMargin = m
     }
 
     private fun isBack() = radioBack.isChecked
@@ -220,9 +262,9 @@ class MainActivity : AppCompatActivity() {
             // Preenche o seletor de qualidade com o que o aparelho oferece
             bindingSpinner = true
             qualitySpinner.adapter = ArrayAdapter(
-                this, android.R.layout.simple_spinner_dropdown_item,
+                this, R.layout.spinner_item,
                 supportedQualities.mapIndexed { i, q -> name(q) + if (i == 0) "  (máxima)" else "" }
-            )
+            ).also { it.setDropDownViewResource(R.layout.spinner_item) }
             val saved = prefs.getInt("quality_${if (isBack()) "b" else "f"}", 0)
             qualitySpinner.setSelection(saved.coerceIn(0, (supportedQualities.size - 1).coerceAtLeast(0)))
             bindingSpinner = false
@@ -325,7 +367,7 @@ class MainActivity : AppCompatActivity() {
         if (videoCapture == null) {
             Toast.makeText(this, "Câmera ainda não está pronta.", Toast.LENGTH_SHORT).show(); return
         }
-        recButton.text = "CANCELAR"
+        recButton.text = "✕ CANCELAR"
         countdownText.visibility = View.VISIBLE
         countdown = object : CountDownTimer(3000, 100) {
             override fun onTick(ms: Long) { countdownText.text = ((ms + 999) / 1000).toString() }
