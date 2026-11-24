@@ -64,6 +64,7 @@ fun button(ctx: Context, text: String, color: Int = PANEL2, fg: Int = TEXT, clic
 class Knob(
     ctx: Context, private val label: String, private val min: Int, private val max: Int,
     value: Int, private val def: Int, private val color: Int, private val bipolar: Boolean = false,
+    private val fmt: ((Int) -> String)? = null,
     private val onChange: (Int) -> Unit,
 ) : View(ctx) {
     var value = value
@@ -96,8 +97,8 @@ class Knob(
         if (bipolar) c.drawArc(rect, 270f, (frac - 0.5f) * 270f, false, p)
         else if (frac > 0f) c.drawArc(rect, 135f, frac * 270f, false, p)
         p.style = Paint.Style.FILL; p.textAlign = Paint.Align.CENTER; p.color = TEXT
-        p.textSize = d * 0.27f; p.typeface = Typeface.DEFAULT_BOLD
-        val shown = if (bipolar) (value - (min + max + 1) / 2).let { if (it > 0) "+$it" else "$it" } else "$value"
+        val shown = fmt?.invoke(value) ?: if (bipolar) (value - (min + max + 1) / 2).let { if (it > 0) "+$it" else "$it" } else "$value"
+        p.textSize = d * (if (shown.length > 4) 0.2f else 0.27f); p.typeface = Typeface.DEFAULT_BOLD
         c.drawText(shown, cx, cy + p.textSize * 0.35f, p)
         p.color = DIM; p.textSize = context.dp(10f); p.typeface = Typeface.DEFAULT
         c.drawText(label, cx, h - context.dp(2f), p)

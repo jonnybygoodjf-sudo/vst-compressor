@@ -79,16 +79,24 @@ class MidiEngine(ctx: Context) {
         try { toDevice?.send(bytes, 0, bytes.size) } catch (_: IOException) {}
     }
 
+    var onSysex: ((ByteArray) -> Unit)? = null
+    private var sxBuf: java.io.ByteArrayOutputStream? = null
+
     private fun parse(d: ByteArray) {
         var i = 0
         while (i < d.size) {
             val s = d[i].toInt() and 0xFF
+            if (s >= 0xF8) { i++; continue }
+            val buf = sxBuf
+            if (buf != null) {
+                if (s < 0x80) { buf.write(s); i++; continue }
+                if (s == 0xF7) { buf.write(s); onSysex?.invoke(buf.toByteArray()); sxBuf = null; i++; continue }
+                sxBuf = null
+            }
             if (s < 0x80) { i++; continue }
             when (s and 0xF0) {
                 0x80, 0x90, 0xA0, 0xB0, 0xE0 -> {
-                    if (i + 2 <= d.size - 1) {
-                        onMessage?.invoke(s, d[i + 1].toInt() and 0x7F, d[i + 2].toInt() and 0x7F)
-                    }
+                    if (i + 2 <= d.size - 1) onMessage?.invoke(s, d[i + 1].toInt() and 0x7F, d[i + 2].toInt() and 0x7F)
                     i += 3
                 }
                 0xC0, 0xD0 -> {
@@ -96,7 +104,7 @@ class MidiEngine(ctx: Context) {
                     i += 2
                 }
                 0xF0 -> {
-                    if (s == 0xF0) { while (i < d.size && (d[i].toInt() and 0xFF) != 0xF7) i++ }
+                    if (s == 0xF0) sxBuf = java.io.ByteArrayOutputStream().also { it.write(s) }
                     i++
                 }
                 else -> i++

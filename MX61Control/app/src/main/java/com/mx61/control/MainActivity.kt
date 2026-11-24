@@ -26,7 +26,9 @@ class MainActivity : Activity() {
         Rig.init(this)
         engine = MidiEngine(this)
         Rig.engine = engine
+        Effects.load(this)
         engine.onMessage = { s, d1, d2 -> Rig.incoming(s, d1, d2) }
+        engine.onSysex = { Rig.onSysex(it) }
         engine.onStateChanged = { refreshStatus(); if (tab == 4) show(4) }
         engine.watch { if (tab == 4) show(4) }
 
@@ -201,23 +203,11 @@ class MainActivity : Activity() {
     }
 
     private var fxPage = 0
+    private var fxRebuild: (() -> Unit)? = null
 
-    private val reverbTypes = listOf(
-        "Sem efeito" to (0 to 0), "REV-X Hall" to (1 to 0x00), "R3 Hall" to (1 to 0x01), "SPX Hall" to (1 to 0x02),
-        "REV-X Room" to (1 to 0x10), "R3 Room" to (1 to 0x11), "SPX Room" to (1 to 0x12), "R3 Plate" to (1 to 0x20),
-        "SPX Stage" to (1 to 0x30), "Space Simulator" to (1 to 0x40),
-    )
-    private val chorusTypes = listOf(
-        "Sem efeito" to (0 to 0),
-        "Cross Delay" to (2 to 0x00), "Tempo Cross Delay" to (2 to 0x10), "Tempo Delay Mono" to (2 to 0x20),
-        "Tempo Delay Stereo" to (2 to 0x28), "Control Delay" to (2 to 0x30), "Delay LR" to (2 to 0x40),
-        "Delay LCR" to (2 to 0x50), "Delay LR (Stereo)" to (2 to 0x48),
-        "G Chorus" to (3 to 0x00), "2 Modulator" to (3 to 0x10), "SPX Chorus" to (3 to 0x20),
-        "Symphonic" to (3 to 0x30), "Ensemble Detune" to (3 to 0x40),
-        "VCM Flanger" to (4 to 0x00), "Classic Flanger" to (4 to 0x10), "Tempo Flanger" to (4 to 0x20),
-        "VCM Phaser Mono" to (5 to 0x00), "VCM Phaser Stereo" to (5 to 0x10), "Tempo Phaser" to (5 to 0x20),
-        "Auto Pan" to (6 to 0x00), "Tremolo" to (6 to 0x10), "Rotary Speaker" to (6 to 0x20),
-    )
+    private fun noteName(n: Int) = arrayOf("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")[n % 12] + (n / 12 - 2)
+    private fun tabFmt(v: Int): String { val t = Effects.tables[3]?.getOrNull(v) ?: return "$v"; return if (t.contains("THRU")) t else t + "Hz" }
+    private fun signed(v: Int) = (v - 64).let { if (it > 0) "+$it" else "$it" }
 
     private fun fxCard(body: LinearLayout, title: String): LinearLayout {
         val card = LinearLayout(this).apply {
@@ -229,63 +219,111 @@ class MainActivity : Activity() {
         return card
     }
 
-    private fun grid(card: LinearLayout): GridLayout {
-        val g = GridLayout(this).apply { columnCount = 4 }
-        card.addView(g); return g
-    }
+    private fun grid(card: LinearLayout): GridLayout { val g = GridLayout(this).apply { columnCount = 4 }; card.addView(g); return g }
 
     private fun GridLayout.addKnob(k: Knob) = addView(k, GridLayout.LayoutParams().apply {
         width = dpi(76f); height = dpi(84f); setMargins(dpi(2f), dpi(2f), dpi(2f), dpi(2f))
     })
 
-    /** Knob ligado a um parâmetro SysEx global. */
-    private fun gKnob(l: String, h: Int, m: Int, lo: Int, min: Int, max: Int, def: Int, bip: Boolean = false, color: Int = ACCENT) =
-        Knob(this, l, min, max, Rig.gVal(h, m, lo, def), def, color, bip) { Rig.setGlobal(h, m, lo, it) }
+    private fun gKnob(l: String, h: Int, m: Int, lo: Int, min: Int, max: Int, def: Int, bip: Boolean = false,
+                      color: Int = ACCENT, fmt: ((Int) -> String)? = null) =
+        Knob(this, l, min, max, Rig.gVal(h, m, lo, def), def, color, bip, fmt) { Rig.setGlobal(h, m, lo, it) }
 
-    private fun typeButton(card: LinearLayout, block: Int, title: String, list: List<Pair<String, Pair<Int, Int>>>) {
-        val cur = Rig.types[block]
-        fun nameOf(v: Int?) = list.firstOrNull { it.second.first * 128 + it.second.second == v }?.first ?: "—"
-        val b = button(this, "$title: ${nameOf(cur)}  ▾") { }
-        b.setOnClickListener {
-            AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK).setTitle(title)
-                .setItems(list.map { it.first }.toTypedArray()) { _, i ->
-                    val (msb, lsb) = list[i].second
-                    Rig.setType(block, msb, lsb)
-                    b.text = "$title: ${list[i].first}  ▾"
-                }.show()
+    /** Linha com rótulo, slider fino, botões −/+ e valor formatado. value < 0 = ainda não lido do MX61. */
+    private fun sliderRow(name: String, min: Int, max: Int, value: Int, fmt: (Int) -> String, color: Int, onChange: (Int) -> Unit): View {
+        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(0, dpi(2f), 0, dpi(2f)) }
+        val lbl = label(name, 12f, TEXT).apply { maxLines = 2 }
+        row.addView(lbl, lp(dpi(112f), -2))
+        var cur = value
+        val valTxt = label(if (value < 0) "—" else fmt(value), 12f, ACCENT, true).apply { gravity = Gravity.END }
+        val sb = SeekBar(this).apply {
+            this.max = max - min; progress = if (value < 0) 0 else value - min
+            progressTintList = android.content.res.ColorStateList.valueOf(color)
+            thumbTintList = android.content.res.ColorStateList.valueOf(color)
         }
-        card.addView(b, lp(-1, -2, 0f, dpi(4f)))
+        fun apply(v: Int) { cur = v.coerceIn(min, max); valTxt.text = fmt(cur); onChange(cur) }
+        sb.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(s: SeekBar?, p: Int, fromUser: Boolean) { if (fromUser) apply(min + p) }
+            override fun onStartTrackingTouch(s: SeekBar?) { sb.parent?.requestDisallowInterceptTouchEvent(true) }
+            override fun onStopTrackingTouch(s: SeekBar?) {}
+        })
+        fun step(d: Int) { apply((if (cur < 0) min else cur) + d); sb.progress = cur - min }
+        row.addView(button(this, "−", PANEL2) { step(-1) }.apply { setPadding(dpi(10f), dpi(2f), dpi(10f), dpi(2f)) }, lp(-2, -2))
+        row.addView(sb, lp(0, -2, 1f))
+        row.addView(button(this, "+", PANEL2) { step(1) }.apply { setPadding(dpi(10f), dpi(2f), dpi(10f), dpi(2f)) }, lp(-2, -2))
+        row.addView(valTxt, lp(dpi(78f), -2))
+        return row
     }
+
+    private fun switchRow(name: String, on: Boolean, color: Int, onChange: (Boolean) -> Unit): View {
+        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(0, dpi(3f), 0, dpi(3f)) }
+        row.addView(label(name, 12f, TEXT), lp(0, -2, 1f))
+        row.addView(pill(this, if (on) "ON" else "OFF", color, on) { onChange(it) }.also { t ->
+            t.setOnClickListener {
+                val nv = t.text != "ON"; t.text = if (nv) "ON" else "OFF"; setPill(t, nv); onChange(nv)
+            }
+        })
+        return row
+    }
+
+    /** Parâmetro SysEx genérico (1 ou 2 bytes). */
+    private class AP(val label: String, val h: Int, val m: () -> Int, val l: Int, val two: Boolean, val min: Int, val max: Int,
+                     val fmt: (Int) -> String = { "$it" })
+
+    private fun apRow(a: AP, color: Int): View {
+        val v = if (a.two) Rig.get2(a.h, a.m(), a.l) else Rig.get(a.h, a.m(), a.l)
+        if (a.min == 0 && a.max == 1) return switchRow(a.label, v == 1, color) { Rig.set1(a.h, a.m(), a.l, if (it) 1 else 0) }
+        return sliderRow(a.label, a.min, a.max, v, a.fmt, color) { if (a.two) Rig.set2(a.h, a.m(), a.l, it) else Rig.set1(a.h, a.m(), a.l, it) }
+    }
+
+    private fun readButton(blocks: List<Triple<Int, Int, Int>>, text: String = "Ler valores do MX61"): TextView =
+        button(this, text, PANEL2, ACCENT) {
+            if (!Rig.engine!!.connected) Toast.makeText(this, "Conecte o MX61 na aba MIDI", Toast.LENGTH_SHORT).show()
+            else { Toast.makeText(this, "Lendo…", Toast.LENGTH_SHORT).show(); Rig.readBlocks(blocks) { fxRebuild?.invoke() } }
+        }
 
     private fun fxScreen(): View {
         val page = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         val holder = FrameLayout(this)
         val seg = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dpi(8f), dpi(6f), dpi(8f), 0) }
-        val segNames = listOf("PARTE", "REVERB/CHORUS", "EQ MASTER", "MASTER")
+        val segNames = listOf("PARTE", "REVERB", "CHORUS", "INSERT", "EQ", "ARP", "MASTER")
         val segViews = ArrayList<TextView>()
         fun paintSeg() = segViews.forEachIndexed { i, t ->
             t.background = roundRect(this, if (i == fxPage) ACCENT else PANEL2, 10f)
             t.setTextColor(if (i == fxPage) 0xFF101218.toInt() else TEXT)
         }
         fun build() {
-            Rig.onPartChanged = null
+            Rig.onPartChanged = null; Rig.onSysexApplied = null
             holder.removeAllViews()
-            holder.addView(when (fxPage) { 0 -> fxPartPage(); 1 -> fxEffectsPage(); 2 -> fxEqPage(); else -> fxMasterPage() }, FrameLayout.LayoutParams(-1, -1))
+            holder.addView(when (fxPage) {
+                0 -> fxPartPage(); 1 -> effectPage("REVERB (efeito de sistema)", 0x36, 0x01, "rev") { b ->
+                    val g = grid(fxCard(b, "NÍVEIS"))
+                    g.addKnob(gKnob("RETORNO", 0x36, 0x01, 0x24, 0, 127, 0x40)); g.addKnob(gKnob("PAN", 0x36, 0x01, 0x25, 1, 127, 0x40, true))
+                }
+                2 -> effectPage("CHORUS / DELAY (efeito de sistema)", 0x36, 0x02, "cho") { b ->
+                    val g = grid(fxCard(b, "NÍVEIS"))
+                    g.addKnob(gKnob("RETORNO", 0x36, 0x02, 0x24, 0, 127, 0x60)); g.addKnob(gKnob("PAN", 0x36, 0x02, 0x25, 1, 127, 0x40, true))
+                    g.addKnob(gKnob("→ REVERB", 0x36, 0x02, 0x26, 0, 127, 0))
+                }
+                3 -> fxInsertPage(); 4 -> fxEqPage(); 5 -> fxArpPage(); else -> fxMasterPage()
+            }, FrameLayout.LayoutParams(-1, -1))
             paintSeg()
         }
+        fxRebuild = { if (tab == 2) build() }
         segNames.forEachIndexed { i, n ->
             val t = TextView(this).apply {
                 text = n; gravity = Gravity.CENTER; textSize = 11f; setTypeface(null, Typeface.BOLD)
-                setPadding(0, dpi(9f), 0, dpi(9f)); setOnClickListener { fxPage = i; build() }
+                setPadding(dpi(14f), dpi(9f), dpi(14f), dpi(9f)); setOnClickListener { fxPage = i; build() }
             }
-            segViews.add(t); seg.addView(t, lp(0, -2, 1f, dpi(2f)))
+            segViews.add(t); seg.addView(t, lp(-2, -2, 0f, dpi(2f)))
         }
-        page.addView(seg)
+        page.addView(HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; addView(seg) })
         page.addView(holder, lp(-1, 0, 1f))
         build()
         return page
     }
 
+    // ----- PARTE -----
     private fun fxPartPage(): View {
         val page = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         val body = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dpi(10f), 0, dpi(10f), dpi(16f)) }
@@ -297,11 +335,10 @@ class MainActivity : Activity() {
             val k = Knob(this, lbl, 0, 127, cur().cc[cc], def, CH_COLORS[Rig.selected], bip) { Rig.setCC(cur(), cc, it) }
             knobs.add { k.set(cur().cc[cc], false) }; g.addKnob(k)
         }
-        fun sxKnob(g: GridLayout, lbl: String, lo: Int, min: Int, max: Int, def: Int, bip: Boolean = false) {
-            val k = Knob(this, lbl, min, max, cur().sx[lo].let { if (it < 0) def else it }, def, CH_COLORS[Rig.selected], bip) {
-                Rig.setPartParam(cur(), lo, it)
-            }
-            knobs.add { k.set(cur().sx[lo].let { v -> if (v < 0) def else v }, false) }; g.addKnob(k)
+        fun sxKnob(g: GridLayout, lbl: String, lo: Int, min: Int, max: Int, def: Int, bip: Boolean = false, fmt: ((Int) -> String)? = null) {
+            fun v() = Rig.get(0x37, cur().idx, lo, def)
+            val k = Knob(this, lbl, min, max, v(), def, CH_COLORS[Rig.selected], bip, fmt) { Rig.setPartParam(cur(), lo, it) }
+            knobs.add { k.set(v(), false) }; g.addKnob(k)
         }
 
         var c = fxCard(body, "ENVIOS DE EFEITO"); var g = grid(c)
@@ -310,7 +347,7 @@ class MainActivity : Activity() {
         ccKnob(g, "CUTOFF", 74, 64, true); ccKnob(g, "RESSON.", 71, 64, true)
         c = fxCard(body, "ENVELOPE DE AMPLITUDE (±)"); g = grid(c)
         ccKnob(g, "ATTACK", 73, 64, true); ccKnob(g, "DECAY", 75, 64, true); ccKnob(g, "SUSTAIN", 31, 64, true); ccKnob(g, "RELEASE", 72, 64, true)
-        c = fxCard(body, "ENVELOPE DE FILTRO (±) — SysEx"); g = grid(c)
+        c = fxCard(body, "ENVELOPE DE FILTRO (±)"); g = grid(c)
         sxKnob(g, "ATTACK", 0x27, 0, 127, 64, true); sxKnob(g, "DECAY", 0x28, 0, 127, 64, true)
         sxKnob(g, "SUSTAIN", 0x29, 0, 127, 64, true); sxKnob(g, "RELEASE", 0x2A, 0, 127, 64, true)
         sxKnob(g, "DEPTH", 0x2B, 0, 127, 64, true)
@@ -318,14 +355,18 @@ class MainActivity : Activity() {
         ccKnob(g, "VOLUME", 7, 100); ccKnob(g, "PAN", 10, 64, true); ccKnob(g, "EXPRESS.", 11, 127)
         ccKnob(g, "MOD", 1, 0); ccKnob(g, "PORTAM.", 5, 0)
         sxKnob(g, "VEL.DEPTH", 0x0C, 0, 127, 64); sxKnob(g, "VEL.OFFS", 0x0D, 0, 127, 64)
-        sxKnob(g, "TRANSP.", 0x16, 0x28, 0x58, 0x40, true)
+        sxKnob(g, "TRANSP.", 0x16, 0x28, 0x58, 0x40, true) { signed(it) }
         val sw = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, dpi(6f), 0, 0) }
         val port = pill(this, "Portamento", ACCENT, cur().cc[65] >= 64) { Rig.setCC(cur(), 65, if (it) 127 else 0) }
         val sus = pill(this, "Sustain", ACCENT, cur().cc[64] >= 64) { Rig.setCC(cur(), 64, if (it) 127 else 0) }
-        val mono = pill(this, "Mono", ACCENT, cur().sx[0x05] == 0) { Rig.setPartParam(cur(), 0x05, if (it) 0 else 1) }
+        val mono = pill(this, "Mono", ACCENT, Rig.get(0x37, cur().idx, 0x05, 1) == 0) { Rig.setPartParam(cur(), 0x05, if (it) 0 else 1) }
         sw.addView(port, lp(-2, -2, 0f, dpi(3f))); sw.addView(sus, lp(-2, -2, 0f, dpi(3f))); sw.addView(mono, lp(-2, -2, 0f, dpi(3f)))
         c.addView(sw)
-        knobs.add { setPill(port, cur().cc[65] >= 64); setPill(sus, cur().cc[64] >= 64); setPill(mono, cur().sx[0x05] == 0) }
+        knobs.add { setPill(port, cur().cc[65] >= 64); setPill(sus, cur().cc[64] >= 64); setPill(mono, Rig.get(0x37, cur().idx, 0x05, 1) == 0) }
+        c = fxCard(body, "FAIXA DE NOTAS, VELOCITY E PITCH BEND"); g = grid(c)
+        sxKnob(g, "NOTA MÍN", 0x08, 0, 127, 0, false) { noteName(it) }; sxKnob(g, "NOTA MÁX", 0x09, 0, 127, 127, false) { noteName(it) }
+        sxKnob(g, "VEL MÍN", 0x06, 1, 127, 1); sxKnob(g, "VEL MÁX", 0x07, 1, 127, 127)
+        sxKnob(g, "PB ↑", 0x0A, 0x10, 0x4C, 0x42, false) { signed(it) }; sxKnob(g, "PB ↓", 0x0B, 0x10, 0x4C, 0x3E, false) { signed(it) }
 
         fun reload() { title.text = "Parte ${cur().idx + 1} · ${cur().name}"; knobs.forEach { it() } }
         page.addView(partChips { reload() })
@@ -336,68 +377,163 @@ class MainActivity : Activity() {
         return page
     }
 
-    private fun fxEffectsPage(): View {
+    // ----- REVERB / CHORUS / INSERT (catálogo oficial de efeitos) -----
+    private fun effectPage(title: String, h: Int, m: Int, block: String, extra: (LinearLayout) -> Unit): View {
         val body = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dpi(10f), dpi(6f), dpi(10f), dpi(16f)) }
-        var c = fxCard(body, "REVERB (efeito de sistema)")
-        typeButton(c, 0x01, "Tipo", reverbTypes)
-        var g = grid(c)
-        g.addKnob(gKnob("RETORNO", 0x36, 0x01, 0x24, 0, 127, 0x40)); g.addKnob(gKnob("PAN", 0x36, 0x01, 0x25, 1, 127, 0x40, true))
-        c = fxCard(body, "CHORUS / DELAY / MODULAÇÃO (efeito de sistema)")
-        typeButton(c, 0x02, "Tipo", chorusTypes)
-        g = grid(c)
-        g.addKnob(gKnob("RETORNO", 0x36, 0x02, 0x24, 0, 127, 0x60)); g.addKnob(gKnob("PAN", 0x36, 0x02, 0x25, 1, 127, 0x40, true))
-        g.addKnob(gKnob("→ REVERB", 0x36, 0x02, 0x26, 0, 127, 0))
-        body.addView(label("Os envios por parte (REVERB/CHORUS) ficam na página PARTE. Ao trocar o tipo, o MX61 carrega os parâmetros padrão do efeito.", 11f),
-            lp(-1, -2, 0f, dpi(6f)))
+        val card = fxCard(body, title)
+        val typeBtn = button(this, "", PANEL2) { }
+        card.addView(typeBtn, lp(-1, -2, 0f, dpi(4f)))
+        card.addView(readButton(listOf(Triple(h, m, 0)), "Ler tipo e parâmetros do MX61"), lp(-1, -2, 0f, dpi(2f)))
+        extra(body)
+        val pc = fxCard(body, "PARÂMETROS DO EFEITO")
+        val key = if (block == "rev") "rev" else "cho"
+        fun rebuild() {
+            while (pc.childCount > 1) pc.removeViewAt(1)
+            val fx = Effects.find(Rig.get2(h, m, 0), block)
+            typeBtn.text = "Tipo: ${fx?.name ?: "—"}  ▾"
+            if (fx == null) { pc.addView(label("Tipo ainda não lido. Escolha um tipo acima ou toque em \"Ler\".", 12f)); return }
+            val ps = fx.params[key]?.filter { !(block == "cho" && it.dryWet) } ?: emptyList()
+            if (ps.isEmpty()) pc.addView(label("Este tipo não tem parâmetros.", 12f))
+            for (p in ps) pc.addView(sliderRow(p.name, p.min, p.max, Rig.get2(h, m, p.offset), { p.fmt(it) }, ACCENT) { Rig.set2(h, m, p.offset, it) })
+        }
+        typeBtn.setOnClickListener {
+            val list = Effects.forBlock(block)
+            AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK).setTitle("Tipo")
+                .setItems(list.map { it.name }.toTypedArray()) { _, i ->
+                    val fx = list[i]
+                    for (l in 4 until 0x24) { Rig.g.remove(Rig.gKey(h, m, l)); Rig.user2.remove(Rig.gKey(h, m, l)) }
+                    Rig.setType(h, m, fx.msb, fx.lsb); rebuild()
+                    if (Rig.engine?.connected == true) Rig.readBlocks(listOf(Triple(h, m, 0))) { rebuild() }
+                }.show()
+        }
+        rebuild()
         return ScrollView(this).apply { addView(body) }
     }
 
+    private fun fxInsertPage(): View {
+        val page = effectPage("INSERT A (voz em edição — modo Voice)", 0x40, 0x03, "ins") { b ->
+            val c = fxCard(b, "INSERT POR PARTE (modo Performance, até 4 partes)")
+            val grid = GridLayout(this).apply { columnCount = 8 }
+            for (i in 0 until 16) {
+                val on = (Rig.insMask shr i) and 1 == 1
+                grid.addView(pill(this, "${i + 1}", CH_COLORS[i], on) { v ->
+                    val nm = if (v) Rig.insMask or (1 shl i) else Rig.insMask and (1 shl i).inv()
+                    if (Integer.bitCount(nm) > 4) { Toast.makeText(this, "Máximo de 4 partes", Toast.LENGTH_SHORT).show(); show(2) }
+                    else Rig.setInsertMask(nm)
+                }, GridLayout.LayoutParams().apply { setMargins(dpi(2f), dpi(2f), dpi(2f), dpi(2f)) })
+            }
+            c.addView(grid)
+            c.addView(label("O efeito de insert em si pertence à voz: os parâmetros abaixo editam a voz atual do MX61 (modo Voice).", 11f))
+        }
+        return page
+    }
+
+    // ----- EQ MASTER -----
     private fun fxEqPage(): View {
         val body = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dpi(10f), dpi(6f), dpi(10f), dpi(16f)) }
-        var c = fxCard(body, "MASTER EQ — GANHO (−12 a +12 dB)"); var g = grid(c)
-        g.addKnob(gKnob("LOW", 0x36, 0x10, 0x00, 0x34, 0x4C, 0x40, true)); g.addKnob(gKnob("LOW-MID", 0x36, 0x10, 0x04, 0x34, 0x4C, 0x40, true))
-        g.addKnob(gKnob("MID", 0x36, 0x10, 0x08, 0x34, 0x4C, 0x40, true)); g.addKnob(gKnob("HI-MID", 0x36, 0x10, 0x0C, 0x34, 0x4C, 0x40, true))
-        g.addKnob(gKnob("HIGH", 0x36, 0x10, 0x10, 0x34, 0x4C, 0x40, true))
-        c = fxCard(body, "MASTER EQ — FREQUÊNCIA (índice da tabela)"); g = grid(c)
-        g.addKnob(gKnob("LOW", 0x36, 0x10, 0x01, 0x04, 0x28, 0x0C)); g.addKnob(gKnob("LOW-MID", 0x36, 0x10, 0x05, 0x0E, 0x36, 0x14))
-        g.addKnob(gKnob("MID", 0x36, 0x10, 0x09, 0x0E, 0x36, 0x1C)); g.addKnob(gKnob("HI-MID", 0x36, 0x10, 0x0D, 0x0E, 0x36, 0x2C))
-        g.addKnob(gKnob("HIGH", 0x36, 0x10, 0x11, 0x1C, 0x3A, 0x34))
+        body.addView(readButton(listOf(Triple(0x36, 0x10, 0))), lp(-1, -2, 0f, dpi(4f)))
+        val bands = listOf(Triple("LOW", 0x00, listOf(0x04, 0x28)), Triple("LOW-MID", 0x04, listOf(0x0E, 0x36)),
+            Triple("MID", 0x08, listOf(0x0E, 0x36)), Triple("HI-MID", 0x0C, listOf(0x0E, 0x36)), Triple("HIGH", 0x10, listOf(0x1C, 0x3A)))
+        val defF = intArrayOf(0x0C, 0x14, 0x1C, 0x2C, 0x34)
+        var c = fxCard(body, "MASTER EQ — GANHO"); var g = grid(c)
+        for ((n, base, _) in bands) g.addKnob(gKnob(n, 0x36, 0x10, base, 0x34, 0x4C, 0x40, true, fmt = { signed(it) + "dB" }))
+        c = fxCard(body, "MASTER EQ — FREQUÊNCIA"); g = grid(c)
+        bands.forEachIndexed { i, (n, base, r) -> g.addKnob(gKnob(n, 0x36, 0x10, base + 1, r[0], r[1], defF[i], fmt = { tabFmt(it) })) }
         c = fxCard(body, "MASTER EQ — Q"); g = grid(c)
-        g.addKnob(gKnob("LOW", 0x36, 0x10, 0x02, 1, 0x78, 7)); g.addKnob(gKnob("LOW-MID", 0x36, 0x10, 0x06, 1, 0x78, 7))
-        g.addKnob(gKnob("MID", 0x36, 0x10, 0x0A, 1, 0x78, 7)); g.addKnob(gKnob("HI-MID", 0x36, 0x10, 0x0E, 1, 0x78, 7))
-        g.addKnob(gKnob("HIGH", 0x36, 0x10, 0x12, 1, 0x78, 7))
-        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, dpi(6f), 0, 0) }
-        row.addView(pill(this, "Low = peaking", ACCENT, Rig.gVal(0x36, 0x10, 0x03, 0) == 1) { Rig.setGlobal(0x36, 0x10, 0x03, if (it) 1 else 0) }, lp(-2, -2, 0f, dpi(3f)))
-        row.addView(pill(this, "High = peaking", ACCENT, Rig.gVal(0x36, 0x10, 0x13, 0) == 1) { Rig.setGlobal(0x36, 0x10, 0x13, if (it) 1 else 0) }, lp(-2, -2, 0f, dpi(3f)))
-        c.addView(row)
-        body.addView(button(this, "Zerar EQ (0 dB)") {
-            for (lo in intArrayOf(0x00, 0x04, 0x08, 0x0C, 0x10)) Rig.setGlobal(0x36, 0x10, lo, 0x40)
-            fxPage = 2; show(2)
+        for ((n, base, _) in bands) g.addKnob(gKnob(n, 0x36, 0x10, base + 2, 1, 0x78, 7, fmt = { String.format(java.util.Locale.US, "%.1f", it / 10.0) }))
+        c = fxCard(body, "FORMATO DOS EXTREMOS")
+        c.addView(switchRow("Low = peaking (OFF = shelving)", Rig.gVal(0x36, 0x10, 0x03, 0) == 1, ACCENT) { Rig.setGlobal(0x36, 0x10, 0x03, if (it) 1 else 0) })
+        c.addView(switchRow("High = peaking (OFF = shelving)", Rig.gVal(0x36, 0x10, 0x13, 0) == 1, ACCENT) { Rig.setGlobal(0x36, 0x10, 0x13, if (it) 1 else 0) })
+        body.addView(button(this, "Zerar ganhos (0 dB)") {
+            for ((_, base, _) in bands) Rig.setGlobal(0x36, 0x10, base, 0x40)
+            fxRebuild?.invoke()
         }, lp(-1, -2, 0f, dpi(6f)))
         return ScrollView(this).apply { addView(body) }
     }
 
+    // ----- ARPEJADOR -----
+    private fun fxArpPage(): View {
+        val page = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val body = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dpi(10f), 0, dpi(10f), dpi(16f)) }
+        val title = label("", 16f, TEXT, true)
+        val partCard = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val quant = listOf("off", "32th", "16th triplet", "16th", "8th triplet", "8th", "4th triplet", "4th")
+        val common = listOf(
+            AP("Arp ligado (global)", 0x36, { 0x30 }, 0x04, false, 0, 1),
+            AP("Tempo", 0x36, { 0x30 }, 0x02, true, 5, 300) { "$it BPM" },
+            AP("Seleção SF", 0x36, { 0x30 }, 0x00, false, 0, 5) { "SF${it + 1}" },
+            AP("Sync quantize", 0x36, { 0x30 }, 0x05, false, 0, 7) { quant[it] },
+        )
+        var c = fxCard(body, "ARPEJADOR — GLOBAL")
+        for (a in common) c.addView(apRow(a, ACCENT))
+        val pp = { Rig.selected }
+        val part = listOf(
+            AP("Arp ligado", 0x38, pp, 0x00, false, 0, 1), AP("Saída MIDI", 0x38, pp, 0x01, false, 0, 1),
+            AP("Canal de saída", 0x38, pp, 0x02, false, 0, 15) { "${it + 1}" },
+            AP("Tocar só o arp", 0x38, pp, 0x03, false, 0, 1), AP("Loop", 0x38, pp, 0x06, false, 0, 1),
+            AP("Hold", 0x38, pp, 0x07, false, 0, 2) { listOf("sync-off", "off", "on")[it] },
+            AP("Multiplicador de unidade", 0x38, pp, 0x08, false, 0, 6) { listOf("50%", "66%", "75%", "100%", "133%", "150%", "200%")[it] },
+            AP("Nota mín", 0x38, pp, 0x09, false, 0, 127) { noteName(it) }, AP("Nota máx", 0x38, pp, 0x0A, false, 0, 127) { noteName(it) },
+            AP("Velocity mín", 0x38, pp, 0x0B, false, 1, 127), AP("Velocity máx", 0x38, pp, 0x0C, false, 1, 127),
+            AP("Modo de tecla", 0x38, pp, 0x0D, false, 0, 4) { listOf("sort", "thru", "direct", "sort+direct", "thru+direct")[it] },
+            AP("Modo de velocity", 0x38, pp, 0x0E, false, 0, 1) { listOf("original", "thru")[it] },
+            AP("Troca de tempo", 0x38, pp, 0x0F, false, 0, 1) { listOf("realtime", "compasso")[it] },
+            AP("Quantize", 0x38, pp, 0x10, false, 1, 7) { quant[it] },
+            AP("Força do quantize", 0x38, pp, 0x11, false, 0, 100) { "$it%" },
+            AP("Velocity rate", 0x38, pp, 0x12, true, 0, 200) { "$it%" },
+            AP("Gate time rate", 0x38, pp, 0x14, true, 0, 200) { "$it%" },
+            AP("Swing", 0x38, pp, 0x1A, true, 8, 248) { (it - 128).let { v -> if (v > 0) "+$v" else "$v" } },
+            AP("Faixa de oitavas", 0x38, pp, 0x1E, false, 0x3D, 0x43) { signed(it) },
+            AP("Oitava de saída", 0x38, pp, 0x1F, false, 0x36, 0x4A) { signed(it) },
+            AP("Trigger", 0x38, pp, 0x20, false, 0, 1) { listOf("gate", "toggle")[it] },
+        )
+        c = fxCard(body, "ARPEJADOR — PARTE SELECIONADA")
+        fun reload() {
+            title.text = "Parte ${Rig.selected + 1} · ${Rig.parts[Rig.selected].name}"
+            while (c.childCount > 1) c.removeViewAt(1)
+            c.addView(readButton(listOf(Triple(0x38, Rig.selected, 0), Triple(0x36, 0x30, 0)), "Ler arpejador do MX61"))
+            for (a in part) c.addView(apRow(a, CH_COLORS[Rig.selected]))
+        }
+        page.addView(partChips { reload() })
+        page.addView(title, lp(-2, -2, 0f, dpi(10f)))
+        page.addView(ScrollView(this).apply { addView(body) }, lp(-1, 0, 1f))
+        reload()
+        return page
+    }
+
+    // ----- MASTER / PERFORMANCE -----
     private fun fxMasterPage(): View {
         val body = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dpi(10f), dpi(6f), dpi(10f), dpi(16f)) }
+        body.addView(readButton(listOf(Triple(0, 0, 0), Triple(0x36, 0, 0)), "Ler master e performance do MX61"), lp(-1, -2, 0f, dpi(4f)))
         var c = fxCard(body, "MASTER"); val g = grid(c)
         g.addKnob(Knob(this, "VOLUME", 0, 127, Rig.masterVol, 127, ACCENT) { Rig.masterVolume(it) })
-        g.addKnob(gKnob("TRANSP.", 0x00, 0x00, 0x07, 0x35, 0x4B, 0x40, true))
-        g.addKnob(gKnob("OITAVA", 0x00, 0x00, 0x08, 0x3D, 0x43, 0x40, true))
-        g.addKnob(gKnob("NOTE SHIFT", 0x00, 0x00, 0x01, 0x28, 0x58, 0x40, true))
-        c = fxCard(body, "TECLADO")
-        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        row.addView(pill(this, "Local ON", ACCENT, Rig.gVal(0, 0, 0x09, 1) == 1) { Rig.setGlobal(0, 0, 0x09, if (it) 1 else 0) }, lp(-2, -2, 0f, dpi(3f)))
-        c.addView(row)
-        val curves = listOf("Normal", "Soft", "Hard", "Wide", "Fixo")
-        val vb = button(this, "Curva de velocity: ${curves[Rig.gVal(0, 0, 0x11, 0).coerceIn(0, 4)]}  ▾") { }
-        vb.setOnClickListener {
-            AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK).setTitle("Curva de velocity")
-                .setItems(curves.toTypedArray()) { _, i -> Rig.setGlobal(0, 0, 0x11, i); vb.text = "Curva de velocity: ${curves[i]}  ▾" }.show()
+        g.addKnob(gKnob("TRANSP.", 0x00, 0x00, 0x07, 0x35, 0x4B, 0x40, true, fmt = { signed(it) }))
+        g.addKnob(gKnob("OITAVA", 0x00, 0x00, 0x08, 0x3D, 0x43, 0x40, true, fmt = { signed(it) }))
+        g.addKnob(gKnob("NOTE SHIFT", 0x00, 0x00, 0x01, 0x28, 0x58, 0x40, true, fmt = { signed(it) }))
+        c = fxCard(body, "PERFORMANCE")
+        val nameRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        val et = EditText(this).apply {
+            setText(Rig.performanceName() ?: ""); hint = "Nome (10 letras)"; setTextColor(TEXT); setHintTextColor(DIM); setSingleLine()
+            filters = arrayOf(android.text.InputFilter.LengthFilter(10))
         }
-        c.addView(vb, lp(-1, -2, 0f, dpi(6f)))
-        val g2 = grid(c)
-        g2.addKnob(gKnob("VEL. FIXA", 0, 0, 0x12, 1, 127, 0x40))
-        body.addView(label("Endereços conforme o Data List oficial do MX49/MX61/MX88 (Model ID 7F 17, device number 1).", 11f), lp(-1, -2, 0f, dpi(6f)))
+        nameRow.addView(et, lp(0, -2, 1f)); nameRow.addView(button(this, "Enviar nome") { Rig.sendPerformanceName(et.text.toString()) })
+        c.addView(nameRow)
+        val perf = listOf(
+            AP("Modo do teclado", 0x36, { 0 }, 0x41, false, 0, 2) { listOf("single", "layer", "split")[it] },
+            AP("Ponto de split", 0x36, { 0 }, 0x42, false, 0, 127) { noteName(it) },
+            AP("Link partes 1-2", 0x36, { 0 }, 0x44, false, 0, 1),
+        )
+        for (a in perf) c.addView(apRow(a, ACCENT))
+        c = fxCard(body, "TECLADO E SISTEMA")
+        val curves = listOf("Normal", "Soft", "Hard", "Wide", "Fixo")
+        val sys = listOf(
+            AP("Local ON", 0, { 0 }, 0x09, false, 0, 1), AP("Curva de velocity", 0, { 0 }, 0x11, false, 0, 4) { curves[it] },
+            AP("Velocity fixa", 0, { 0 }, 0x12, false, 1, 127), AP("Enviar/receber Bank Select", 0, { 0 }, 0x14, false, 0, 1),
+            AP("Enviar/receber Program Change", 0, { 0 }, 0x15, false, 0, 1), AP("Volume WAV (USB)", 0, { 0 }, 0x1D, false, 0, 127),
+            AP("Direct monitor", 0, { 0 }, 0x10, false, 0, 1),
+        )
+        for (a in sys) c.addView(apRow(a, ACCENT))
+        body.addView(label("Endereços do Data List oficial do MX49/MX61/MX88 (Model ID 7F 17).", 11f), lp(-1, -2, 0f, dpi(6f)))
         return ScrollView(this).apply { addView(body) }
     }
 
@@ -454,6 +590,19 @@ class MainActivity : Activity() {
         act.addView(button(this, "Enviar todo o estado do app → MX61", ACCENT, 0xFF101218.toInt()) {
             Rig.syncAll(); Toast.makeText(this, "Enviado", Toast.LENGTH_SHORT).show()
         }, lp(-1, -2, 0f, dpi(4f)))
+        act.addView(button(this, "Ler tudo do MX61 (efeitos, EQ, partes, arpejo)", PANEL2, ACCENT) {
+            if (!engine.connected) Toast.makeText(this, "Conecte o MX61 primeiro", Toast.LENGTH_SHORT).show()
+            else {
+                Toast.makeText(this, "Lendo… (cerca de 6 s)", Toast.LENGTH_LONG).show()
+                Rig.readBlocks(Rig.readAllBlocks()) { Toast.makeText(this, "Leitura concluída", Toast.LENGTH_SHORT).show() }
+            }
+        }, lp(-1, -2, 0f, dpi(4f)))
+        act.addView(button(this, "Device number do MX61: ${Rig.dev + 1}  ▾") { }.also { b ->
+            b.setOnClickListener {
+                AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK).setTitle("Device number (padrão: 1)")
+                    .setItems(Array(16) { "${it + 1}" }) { _, i -> Rig.dev = i; b.text = "Device number do MX61: ${i + 1}  ▾" }.show()
+            }
+        }, lp(-1, -2, 0f, dpi(4f)))
         act.addView(button(this, "Parar todos os sons (All Notes/Sound Off)") { Rig.panic() }, lp(-1, -2, 0f, dpi(4f)))
         act.addView(button(this, "Resetar controladores (CC121)") { Rig.resetControllers() }, lp(-1, -2, 0f, dpi(4f)))
         act.addView(button(this, "GM System On (cuidado: reinicia o modo)") {
@@ -499,6 +648,13 @@ class MainActivity : Activity() {
         c.addView(label("Número da voz", 11f).apply { gravity = Gravity.CENTER })
         val pc = NumberPicker(this).apply { minValue = 1; maxValue = 128; value = p.pc + 1; wrapSelectorWheel = true }
         c.addView(pc); pickers.addView(c, lp(0, -2, 1f))
+        val rxBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER }
+        rxBox.addView(label("Canal RX", 11f).apply { gravity = Gravity.CENTER })
+        val rx = NumberPicker(this).apply {
+            minValue = 1; maxValue = 17; displayedValues = Array(17) { if (it == 16) "OFF" else "${it + 1}" }
+            val cur = Rig.get(0x37, p.idx, 0x04, p.idx); value = if (cur == 0x7F) 17 else (cur + 1).coerceIn(1, 16)
+        }
+        rxBox.addView(rx); pickers.addView(rxBox, lp(0, -2, 1f))
         bankBtn.setOnClickListener {
             AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK).setTitle("Banco")
                 .setItems(banks.map { it.first }.toTypedArray()) { _, i ->
@@ -512,7 +668,9 @@ class MainActivity : Activity() {
             .setPositiveButton("Aplicar") { _, _ ->
                 p.name = name.text.toString().ifBlank { "Part ${p.idx + 1}" }
                 p.msb = msb; p.lsb = lsb; p.pc = pc.value - 1
-                Rig.sendVoice(p); done()
+                Rig.sendVoice(p)
+                Rig.set1(0x37, p.idx, 0x04, if (rx.value == 17) 0x7F else rx.value - 1)
+                done()
             }.setNegativeButton("Cancelar", null).show()
     }
 }
