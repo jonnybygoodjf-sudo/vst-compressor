@@ -12,8 +12,10 @@ class Part(val idx: Int) {
     var pc = 0
     var mute = false
     var solo = false
+    /** Parâmetros SysEx da parte (endereço baixo -> valor), -1 = nunca alterado. */
+    val sx = IntArray(0x40) { -1 }
     val cc = IntArray(128) { 64 }.also {
-        it[1] = 0; it[7] = 100; it[11] = 127; it[91] = 40; it[93] = 0; it[94] = 0
+        it[1] = 0; it[7] = 100; it[11] = 127; it[91] = 40; it[93] = 0; it[31] = 64
         it[64] = 0; it[65] = 0; it[5] = 0
     }
 }
@@ -31,7 +33,7 @@ object Rig {
     var onPartChanged: ((Int) -> Unit)? = null
 
     /** CCs que o app controla e sincroniza com o teclado. */
-    val tracked = intArrayOf(1, 5, 7, 10, 11, 64, 65, 71, 72, 73, 74, 75, 91, 93, 94)
+    val tracked = intArrayOf(1, 5, 7, 10, 11, 31, 64, 65, 71, 72, 73, 74, 75, 91, 93)
 
     private var prefs: android.content.SharedPreferences? = null
     private val main = Handler(Looper.getMainLooper())
@@ -41,6 +43,23 @@ object Rig {
         prefs = ctx.getSharedPreferences("rig", Context.MODE_PRIVATE)
         load()
     }
+
+    /** Parâmetros SysEx globais (Multi Common, Reverb, Chorus, Master EQ, System). Chave = h<<16|m<<8|l. */
+    val g = HashMap<Int, Int>()
+    /** Tipos de efeito (2 bytes MSB/LSB): chave = bloco (0x01 reverb, 0x02 chorus). Valor = msb*128+lsb. */
+    val types = HashMap<Int, Int>()
+
+    fun gKey(h: Int, m: Int, l: Int) = (h shl 16) or (m shl 8) or l
+    fun gVal(h: Int, m: Int, l: Int, def: Int) = g[gKey(h, m, l)] ?: def
+
+    /** Parameter Change nativo do MX: F0 43 10 7F 17 hh mm ll dd.. F7 (device number 1). */
+    fun sx(vararg b: Int) { engine?.send(0xF0, 0x43, 0x10, 0x7F, 0x17, *b, 0xF7) }
+
+    fun setGlobal(h: Int, m: Int, l: Int, v: Int) { g[gKey(h, m, l)] = v; sx(h, m, l, v); later() }
+
+    fun setType(block: Int, msb: Int, lsb: Int) { types[block] = msb * 128 + lsb; sx(0x36, block, 0x00, msb, lsb); later() }
+
+    fun setPartParam(p: Part, lo: Int, v: Int) { p.sx[lo] = v; sx(0x37, p.idx, lo, v); later() }
 
     // ---------- envio ----------
     private fun ch(i: Int) = i and 0x0F
@@ -91,7 +110,10 @@ object Rig {
             sendVoice(p)
             for (c in tracked) if (c != 7) send(0xB0 or p.idx, c, p.cc[c])
             sendVol(p)
+            for (i in p.sx.indices) if (p.sx[i] >= 0) sx(0x37, p.idx, i, p.sx[i])
         }
+        for ((blk, t) in types) sx(0x36, blk, 0x00, t / 128, t % 128)
+        for ((k, v) in g) sx(k shr 16, (k shr 8) and 0xFF, k and 0xFF, v)
     }
 
     /** Hex "F0 43 ... F7" -> bytes, ou null se inválido. */
@@ -140,9 +162,12 @@ object Rig {
     private fun save() {
         val e = prefs?.edit() ?: return
         e.putInt("master", masterVol)
+        e.putString("g", g.entries.joinToString(",") { "${it.key}:${it.value}" })
+        e.putString("types", types.entries.joinToString(",") { "${it.key}:${it.value}" })
         for (p in parts) {
             val ccs = tracked.joinToString(",") { "$it:${p.cc[it]}" }
-            e.putString("p${p.idx}", listOf(p.name.replace("|", " "), p.msb, p.lsb, p.pc, p.mute, p.solo, ccs).joinToString("|"))
+            e.putString("p${p.idx}", listOf(p.name.replace("|", " "), p.msb, p.lsb, p.pc, p.mute, p.solo, ccs,
+                p.sx.withIndex().filter { it.value >= 0 }.joinToString(",") { "${it.index}:${it.value}" }).joinToString("|"))
         }
         e.apply()
     }
@@ -150,6 +175,10 @@ object Rig {
     private fun load() {
         val sp = prefs ?: return
         masterVol = sp.getInt("master", 127)
+        fun readMap(key: String, into: HashMap<Int, Int>) = sp.getString(key, "")?.split(",")?.forEach {
+            val kv = it.split(":"); if (kv.size == 2) into[kv[0].toInt()] = kv[1].toInt()
+        }
+        readMap("g", g); readMap("types", types)
         for (p in parts) {
             val f = sp.getString("p${p.idx}", null)?.split("|") ?: continue
             if (f.size < 7) continue
@@ -158,6 +187,10 @@ object Rig {
             f[6].split(",").forEach {
                 val kv = it.split(":")
                 if (kv.size == 2) p.cc[kv[0].toInt()] = kv[1].toInt()
+            }
+            if (f.size > 7) f[7].split(",").forEach {
+                val kv = it.split(":")
+                if (kv.size == 2) p.sx[kv[0].toInt()] = kv[1].toInt()
             }
         }
     }
