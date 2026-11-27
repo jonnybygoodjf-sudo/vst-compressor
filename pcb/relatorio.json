@@ -1,0 +1,376 @@
+{
+ "variante": "B",
+ "tempo_s": 18.2,
+ "redes_nao_roteadas": [],
+ "jumpers": [
+  {
+   "ref": "J1",
+   "rede": "+5V",
+   "comprimento_mm": 10.16,
+   "de": [
+    41.4,
+    60.45
+   ],
+   "ate": [
+    41.4,
+    50.29
+   ]
+  },
+  {
+   "ref": "J2",
+   "rede": "GND",
+   "comprimento_mm": 10.16,
+   "de": [
+    73.4,
+    51.6
+   ],
+   "ate": [
+    83.56,
+    51.6
+   ]
+  },
+  {
+   "ref": "J3",
+   "rede": "GND",
+   "comprimento_mm": 5.0,
+   "de": [
+    36.8,
+    28.2
+   ],
+   "ate": [
+    31.8,
+    28.2
+   ]
+  }
+ ],
+ "placa_mm": [
+  108.24,
+  62.5
+ ],
+ "area_mm2": 6761.6,
+ "gpio": {
+  "WS1": 7,
+  "DOUT": 15,
+  "BCLK1": 16,
+  "DIN1": 10,
+  "MCLK1": 12,
+  "BCLK2": 42,
+  "DIN2": 41,
+  "WS2": 40,
+  "MCLK2": 39
+ },
+ "erc": {
+  "erros": [],
+  "redes": {
+   "+5V": 1,
+   "3V3": 1,
+   "5V_EXT": 1,
+   "BCLK1": 1,
+   "BCLK1_ESP": 1,
+   "BCLK2": 1,
+   "BCLK2_ESP": 1,
+   "DIN1": 1,
+   "DIN2": 1,
+   "DOUT": 1,
+   "EXP_IO18": 1,
+   "EXP_IO21": 1,
+   "EXP_IO3": 1,
+   "EXP_IO46": 1,
+   "EXP_IO47": 1,
+   "EXP_IO8": 1,
+   "EXP_IO9": 1,
+   "GND": 1,
+   "IN1L": 1,
+   "IN1R": 1,
+   "IN2L": 1,
+   "IN2R": 1,
+   "MCLK1": 1,
+   "MCLK1_ESP": 1,
+   "MCLK2": 1,
+   "MCLK2_ESP": 1,
+   "OUTL": 1,
+   "OUTR": 1,
+   "WS1": 1,
+   "WS2": 1
+  }
+ },
+ "drc": {
+  "erros": [],
+  "folga_min": [
+   0.519,
+   [
+    "trilha +5V#16",
+    "plano GND#1"
+   ]
+  ],
+  "larg_min": 0.6,
+  "borda_min": [
+   1.0,
+   "plano GND#4"
+  ],
+  "anel_min": 0.5,
+  "furo_min": 1.0,
+  "furo_npth_min": 0.52,
+  "furo_furo_min": 1.44,
+  "zona_antena": [
+   [
+    "trilha 3V3#17",
+    11.16
+   ],
+   [
+    "trilha 3V3#18",
+    0.66
+   ]
+  ]
+ },
+ "conferencia_spec_ok": true,
+ "conferencia_spec": [
+  {
+   "sinal": "MCLK1",
+   "gpio": 12,
+   "pino_esp": "U1.L18",
+   "destino": "U2.SCK",
+   "rede": "MCLK1",
+   "ok": true
+  },
+  {
+   "sinal": "BCLK1",
+   "gpio": 16,
+   "pino_esp": "U1.L9",
+   "destino": "U2.BCK",
+   "rede": "BCLK1",
+   "ok": true
+  },
+  {
+   "sinal": "BCLK1",
+   "gpio": 16,
+   "pino_esp": "U1.L9",
+   "destino": "U4.BCK",
+   "rede": "BCLK1",
+   "ok": true
+  },
+  {
+   "sinal": "WS1",
+   "gpio": 7,
+   "pino_esp": "U1.L7",
+   "destino": "U2.LRC",
+   "rede": "WS1",
+   "ok": true
+  },
+  {
+   "sinal": "WS1",
+   "gpio": 7,
+   "pino_esp": "U1.L7",
+   "destino": "U4.LCK",
+   "rede": "WS1",
+   "ok": true
+  },
+  {
+   "sinal": "DIN1",
+   "gpio": 10,
+   "pino_esp": "U1.L16",
+   "destino": "U2.OUT",
+   "rede": "DIN1",
+   "ok": true
+  },
+  {
+   "sinal": "DOUT",
+   "gpio": 15,
+   "pino_esp": "U1.L8",
+   "destino": "U4.DIN",
+   "rede": "DOUT",
+   "ok": true
+  },
+  {
+   "sinal": "MCLK2",
+   "gpio": 39,
+   "pino_esp": "U1.R9",
+   "destino": "U3.SCK",
+   "rede": "MCLK2",
+   "ok": true
+  },
+  {
+   "sinal": "BCLK2",
+   "gpio": 42,
+   "pino_esp": "U1.R6",
+   "destino": "U3.BCK",
+   "rede": "BCLK2",
+   "ok": true
+  },
+  {
+   "sinal": "WS2",
+   "gpio": 40,
+   "pino_esp": "U1.R8",
+   "destino": "U3.LRC",
+   "rede": "WS2",
+   "ok": true
+  },
+  {
+   "sinal": "DIN2",
+   "gpio": 41,
+   "pino_esp": "U1.R7",
+   "destino": "U3.OUT",
+   "rede": "DIN2",
+   "ok": true
+  },
+  {
+   "sinal": "+5V",
+   "gpio": null,
+   "pino_esp": "",
+   "destino": "U1.L21",
+   "rede": "+5V",
+   "ok": true
+  },
+  {
+   "sinal": "+5V",
+   "gpio": null,
+   "pino_esp": "",
+   "destino": "U2.+5V",
+   "rede": "+5V",
+   "ok": true
+  },
+  {
+   "sinal": "+5V",
+   "gpio": null,
+   "pino_esp": "",
+   "destino": "U3.+5V",
+   "rede": "+5V",
+   "ok": true
+  },
+  {
+   "sinal": "+5V",
+   "gpio": null,
+   "pino_esp": "",
+   "destino": "U4.VIN",
+   "rede": "+5V",
+   "ok": true
+  },
+  {
+   "sinal": "3V3",
+   "gpio": null,
+   "pino_esp": "",
+   "destino": "U1.L1",
+   "rede": "3V3",
+   "ok": true
+  },
+  {
+   "sinal": "3V3",
+   "gpio": null,
+   "pino_esp": "",
+   "destino": "U2.3V3a",
+   "rede": "3V3",
+   "ok": true
+  },
+  {
+   "sinal": "3V3",
+   "gpio": null,
+   "pino_esp": "",
+   "destino": "U3.3V3b",
+   "rede": "3V3",
+   "ok": true
+  },
+  {
+   "sinal": "GND",
+   "gpio": null,
+   "pino_esp": "",
+   "destino": "U1.L22",
+   "rede": "GND",
+   "ok": true
+  },
+  {
+   "sinal": "GND",
+   "gpio": null,
+   "pino_esp": "",
+   "destino": "U2.GNDa",
+   "rede": "GND",
+   "ok": true
+  },
+  {
+   "sinal": "GND",
+   "gpio": null,
+   "pino_esp": "",
+   "destino": "U2.MD0",
+   "rede": "GND",
+   "ok": true
+  },
+  {
+   "sinal": "GND",
+   "gpio": null,
+   "pino_esp": "",
+   "destino": "U2.MD1",
+   "rede": "GND",
+   "ok": true
+  },
+  {
+   "sinal": "GND",
+   "gpio": null,
+   "pino_esp": "",
+   "destino": "U2.PMT",
+   "rede": "GND",
+   "ok": true
+  },
+  {
+   "sinal": "GND",
+   "gpio": null,
+   "pino_esp": "",
+   "destino": "U3.GNDa",
+   "rede": "GND",
+   "ok": true
+  },
+  {
+   "sinal": "GND",
+   "gpio": null,
+   "pino_esp": "",
+   "destino": "U3.MD0",
+   "rede": "GND",
+   "ok": true
+  },
+  {
+   "sinal": "GND",
+   "gpio": null,
+   "pino_esp": "",
+   "destino": "U3.MD1",
+   "rede": "GND",
+   "ok": true
+  },
+  {
+   "sinal": "GND",
+   "gpio": null,
+   "pino_esp": "",
+   "destino": "U3.PMT",
+   "rede": "GND",
+   "ok": true
+  },
+  {
+   "sinal": "GND",
+   "gpio": null,
+   "pino_esp": "",
+   "destino": "U4.GND",
+   "rede": "GND",
+   "ok": true
+  },
+  {
+   "sinal": "GND",
+   "gpio": null,
+   "pino_esp": "",
+   "destino": "U4.SCK",
+   "rede": "GND",
+   "ok": true
+  }
+ ],
+ "comprimento_clock_mm": {
+  "MCLK1_ESP": 3.4,
+  "MCLK1": 2.8,
+  "BCLK1_ESP": 3.3,
+  "BCLK1": 20.1,
+  "MCLK2_ESP": 7.6,
+  "MCLK2": 13.9,
+  "BCLK2_ESP": 3.6,
+  "BCLK2": 38.7,
+  "WS1": 35.2,
+  "WS2": 30.5
+ },
+ "trilhas": 95,
+ "componentes": 27,
+ "log": []
+}

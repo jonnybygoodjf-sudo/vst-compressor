@@ -1,0 +1,24 @@
+{
+ "info": {
+  "name": "mixer-dsp-pcb",
+  "total": 258,
+  "porTipo": {
+   "line": 33,
+   "comp": 30,
+   "track": 95,
+   "zone": 5,
+   "text": 95
+  }
+ },
+ "arquivos": [
+  "mixer-dsp-pcb-F_Cu.gtl",
+  "mixer-dsp-pcb-B_Cu.gbl",
+  "mixer-dsp-pcb-F_Silkscreen.gto",
+  "mixer-dsp-pcb-B_Silkscreen.gbo",
+  "mixer-dsp-pcb-F_Mask.gts",
+  "mixer-dsp-pcb-B_Mask.gbs",
+  "mixer-dsp-pcb-Edge_Cuts.gm1",
+  "mixer-dsp-pcb.drl"
+ ],
+ "erros": []
+}

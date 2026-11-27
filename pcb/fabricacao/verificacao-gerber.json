@@ -1,0 +1,51 @@
+{
+ "erros": [],
+ "alinhamento_ok": true,
+ "ilhas_de_cobre": 59,
+ "redes": {
+  "+5V": "OK",
+  "3V3": "OK",
+  "5V_EXT": "OK",
+  "BCLK1": "OK",
+  "BCLK1_ESP": "OK",
+  "BCLK2": "OK",
+  "BCLK2_ESP": "OK",
+  "DIN1": "OK",
+  "DIN2": "OK",
+  "DOUT": "OK",
+  "EXP_IO18": "OK",
+  "EXP_IO21": "OK",
+  "EXP_IO3": "OK",
+  "EXP_IO46": "OK",
+  "EXP_IO47": "OK",
+  "EXP_IO8": "OK",
+  "EXP_IO9": "OK",
+  "GND": "OK",
+  "IN1L": "OK",
+  "IN1R": "OK",
+  "IN2L": "OK",
+  "IN2R": "OK",
+  "MCLK1": "OK",
+  "MCLK1_ESP": "OK",
+  "MCLK2": "OK",
+  "MCLK2_ESP": "OK",
+  "OUTL": "OK",
+  "OUTR": "OK",
+  "WS1": "OK",
+  "WS2": "OK"
+ },
+ "folga_min_gerber_mm": 0.519,
+ "cobre_borda_min_mm": 1.0,
+ "furos_excellon": 145,
+ "pads_sem_furo": [],
+ "furos_por_diametro": {
+  "1.0": 133,
+  "1.1": 6,
+  "1.3": 2,
+  "3.2": 4
+ },
+ "contorno_mm": [
+  108.24,
+  62.5
+ ]
+}
